@@ -1,0 +1,16 @@
+@layer legacy {
+.imageTargets{position:relative;width:100%;margin:0 auto}
+.storyTargets{max-width:440px}
+.imageTargets img{display:block;width:100%}
+.zone{position:absolute;z-index:2;border:2px solid transparent;border-radius:6px;background:transparent;cursor:pointer}
+.zone:hover,.zone:focus-visible{border-color:#6944c8;background:#ffffff1a;outline:0}
+.background{z-index:1;inset:0}
+.postTitle{left:7%;top:19%;width:84%;height:22%}
+.postSubline{left:7%;top:43%;width:84%;height:18%}
+.postArtwork{left:7%;top:64%;width:86%;height:31%}
+.storyTitle{left:7%;top:25%;width:84%;height:19%}
+.storySubline{left:7%;top:47%;width:84%;height:13%}
+.storyArtwork{left:7%;top:61%;width:86%;height:20%}
+.storyCta{left:7%;top:82%;width:84%;height:9%}
+
+}

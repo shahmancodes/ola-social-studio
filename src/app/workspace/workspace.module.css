@@ -1,0 +1,13 @@
+@layer legacy {
+.page { display: grid; place-items: center; min-height: calc(100dvh - 76px); padding: 48px clamp(24px, 5vw, 72px) 110px; background: #f7f5f7; color: #29252d; }
+.body { width: min(100%, 780px); margin-top: -24px; }
+.heading { margin-bottom: 30px; text-align: center; }
+.eyebrow { margin: 0 0 14px; color: #73528b; font-size: 11px; font-weight: 800; letter-spacing: .13em; }
+.heading h1 { margin: 0; font-size: clamp(36px, 4.7vw, 56px); font-weight: 570; line-height: 1.12; letter-spacing: -.065em; }
+.description { max-width: 520px; margin: 16px auto 0; color: #756d79; font-size: 14px; line-height: 1.55; }
+.createContent { width: 100%; }
+.noCompany { color: #716978; text-align: center; }
+@media (max-width: 780px) { .page { min-height: calc(100dvh - 62px); padding: 40px 22px 100px; } }
+@media (max-width: 600px) { .heading { margin-bottom: 27px; } .heading h1 { font-size: clamp(32px, 8vw, 42px); } .body { margin-top: -10px; } .description { font-size: 13px; } }
+
+}

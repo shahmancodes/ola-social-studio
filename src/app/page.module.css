@@ -1,0 +1,49 @@
+@layer legacy {
+.page { display: flex; flex-direction: column; height: 100dvh; min-height: 0; overflow: hidden; background: #fbfaf8; color: #1c1a21; font-family: 'Manrope Variable', Manrope, sans-serif; }
+.header { position: relative; z-index: 3; display: flex; flex: none; align-items: center; justify-content: flex-end; width: 100%; height: 82px; max-width: 1440px; margin: 0 auto; padding: 0 clamp(24px, 5vw, 72px); }
+.header nav { display: flex; align-items: center; gap: 12px; }
+.whatsappNav { display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid #d8e9dd; border-radius: 999px; background: #f6fbf7; color: #2b7047; font-size: 12px; font-weight: 720; text-decoration: none; }
+.whatsappNav:hover { border-color: #b8dcc1; background: #edf8ef; transform: translateY(-1px); }
+.whatsappNav img { display: block; width: 18px; height: 18px; flex: none; }
+.workspaceNav { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 16px; border: 1px solid #242126; border-radius: 999px; background: #242126; color: #fff; font-size: 12px; font-weight: 750; line-height: normal; text-decoration: none; white-space: nowrap; transition: background-color .15s ease, border-color .15s ease; }
+.workspaceNav:hover, .workspaceNav:focus-visible { border-color: #9155bb; background: linear-gradient(105deg,#3c6dcc 0%,#8051c2 35%,#cc6099 67%,#e7a056 100%); color: #fff; }
+.workspaceNav:focus-visible { outline: 2px solid #784bc6; outline-offset: 3px; }
+.hero { position: relative; display: grid; flex: 1; min-height: 0; place-items: center; padding: 24px 22px; isolation: isolate; }
+.colorField { position: absolute; z-index: -1; width: min(1050px, 115vw); height: min(700px, 85vh); left: 50%; top: 50%; border-radius: 50%; background: conic-gradient(from 20deg, #a4bdf9, #d9a9f0, #ffc5ce, #ffe0ad, #bdeacb, #a4bdf9); opacity: .52; filter: blur(100px); transform: translate(-50%, -50%); animation: colorDrift 22s linear infinite; pointer-events: none; }
+.heroContent { position: relative; width: 100%; max-width: 1050px; text-align: center; }
+.hero h1 { display: flex; align-items: center; justify-content: center; gap: .2em; margin: 0; font-size: clamp(52px, 7vw, 100px); font-weight: 650; line-height: 1.1; letter-spacing: -.078em; white-space: nowrap; }
+.heroLogo { display: block; flex: none; width: auto; height: 1.3em; transform: translateY(-.18em); }
+.heroPeriod { margin-left: -.24em; }
+.tagline { margin-top: 8px; font-size: clamp(27px, 3.5vw, 46px); font-weight: 600; line-height: 1.3; letter-spacing: -.065em; }
+.rotatingLine { display: block; min-height: 1.35em; padding: .04em 0 .16em; }
+.rotatingPhrase { display: inline-block; max-width: 100%; padding: 0 .08em .08em; color: #7547a6; background: linear-gradient(100deg, #2c66cd 0%, #784bc6 23%, #d05d9c 45%, #e99c4f 68%, #2b9b8b 85%, #2c66cd 100%); background-size: 240% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: phraseIn .6s cubic-bezier(.2,.7,.2,1) both, rainbowMove 10s linear infinite; }
+.promptForm { display: flex; align-items: center; gap: 8px; width: min(100%, 740px); height: 64px; margin: 52px auto 0; padding: 6px 7px 6px 24px; border: 1px solid #e6e0e9; border-radius: 999px; background: #fff; box-shadow: 0 18px 52px #2e23351a, 0 2px 9px #2e23350a; text-align: left; transition: border-color .2s, box-shadow .2s; }
+.promptForm:focus-within { border-color: #a781ca; box-shadow: 0 18px 52px #57357326, 0 0 0 4px #a781ca20; }
+.promptForm input { min-width: 0; width: 100%; height: 100%; flex: 1; border: 0; outline: 0; background: transparent; color: #29232e; font: 500 15px/1.3 'Manrope Variable', Manrope, sans-serif; }
+.promptForm input::placeholder { color: #a29aa8; }
+.promptForm button { display: grid; place-items: center; flex: none; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.promptForm button:focus-visible { outline: none; }
+.promptBrush { display: block; width: 34px; height: 34px; transform-origin: center; transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+.promptForm button:hover .promptBrush, .promptForm button:focus-visible .promptBrush { transform: scale(1.1); }
+.formatChoices{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:18px auto 0}.formatChoices button{border:1px solid #d9cfdf;border-radius:999px;background:#ffffffcc;padding:8px 14px;color:#34243f;font:700 12px/1.2 'Manrope Variable',Manrope,sans-serif;cursor:pointer}.formatChoices button:hover,.formatChoices button:focus-visible{border-color:#9165bd;background:#fff}.comingSoonList{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin-top:13px;color:#77717c;font-size:11px}.comingSoonList button{border:1px solid #e6e0e9;border-radius:999px;background:#ffffff70;padding:5px 8px;color:#77717c;cursor:not-allowed}.comingSoonList small{font-size:9px;color:#8f8498}
+@keyframes colorDrift { 50% { transform: translate(-48%, -52%) rotate(180deg) scale(1.06); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes rainbowMove { to { background-position: 200% 50%; } }
+@keyframes phraseIn { from { opacity: 0; transform: translateY(14px); filter: blur(5px); } to { opacity: 1; transform: translateY(0); filter: blur(0); } }
+@media(max-width:650px) { .header { height: 72px; padding: 0 22px; } .hero { padding: 14px 22px; } .hero h1 { font-size: clamp(43px, 10vw, 68px); } .tagline { margin-top: 4px; font-size: clamp(24px, 6vw, 34px); } .promptForm { height: 58px; margin-top: 30px; padding-left: 19px; } .promptForm input { font-size: 13px; } .promptForm button { width: 44px; height: 44px; } .colorField { width: 140vw; height: 65vh; filter: blur(75px); } }
+@media(max-width:650px){.formatChoices{margin-top:14px}.comingSoonList{max-width:360px;margin:11px auto 0}}
+@media(prefers-reduced-motion:reduce) { .colorField,.rotatingPhrase { animation: none; } .rotatingPhrase { background-position: 45% 50%; } .promptBrush { transition: none; } .promptForm button:hover .promptBrush, .promptForm button:focus-visible .promptBrush { transform: none; } }
+
+/* A quiet, consistent masthead leaves the hero to carry the brand expression. */
+.header { height: 76px; justify-content: flex-end; border-bottom: 1px solid #e9e5e8; }
+.hero { min-height: 0; }
+.header nav { gap: 18px; }
+.header nav .whatsappNav { color: #2b7047; }
+.tagline { font-size: clamp(25px, 3vw, 36px); font-weight: 550; letter-spacing: -.045em; }
+.rotatingPhrase { color: #7547a6; background: linear-gradient(100deg, #2c66cd 0%, #784bc6 23%, #d05d9c 45%, #e99c4f 68%, #2b9b8b 85%, #2c66cd 100%); background-size: 240% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: phraseIn .6s cubic-bezier(.2,.7,.2,1) both, rainbowMove 10s linear infinite; }
+.rainbowPhrase { color: #7547a6; background: linear-gradient(100deg, #2c66cd 0%, #784bc6 23%, #d05d9c 45%, #e99c4f 68%, #2b9b8b 85%, #2c66cd 100%); background-size: 240% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: phraseIn .6s cubic-bezier(.2,.7,.2,1) both, rainbowMove 10s linear infinite; }
+@media(max-width:650px) { .header { height: 68px; } }
+@media(max-width:650px) { .header nav { gap: 8px; } .whatsappNav { gap: 5px; padding: 8px 10px; font-size: 11px; } .whatsappNav img { width: 16px; height: 16px; } }
+@media(max-height:600px) { .hero { padding-top: 8px; padding-bottom: 8px; } .hero h1 { font-size: clamp(42px, 7vw, 72px); } .tagline { font-size: clamp(22px, 3vw, 31px); } .promptForm { margin-top: 18px; } }
+@media(prefers-reduced-motion:reduce) { .rainbowPhrase { animation: none; background-position: 45% 50%; } }
+
+}

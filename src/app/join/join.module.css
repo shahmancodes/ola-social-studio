@@ -1,0 +1,43 @@
+@layer legacy {
+.page { min-height: 100dvh; overflow: hidden; background: #fbfaf8; color: #211c25; font-family: 'Manrope Variable', Manrope, sans-serif; }
+.header { position: relative; z-index: 3; display: flex; align-items: center; justify-content: space-between; height: 82px; max-width: 1440px; margin: 0 auto; padding: 0 clamp(24px, 5vw, 72px); }
+.wordmark { display: inline-flex; align-items: center; text-decoration: none; }
+.wordmark img { display: block; width: auto; height: 45px; }
+.signIn { display: inline-flex; align-items: center; gap: 13px; color: #605763; text-decoration: none; font-size: 12px; font-weight: 750; }
+.signIn:hover { color: #754fb4; }
+.stage { position: relative; min-height: calc(100dvh - 82px); display: grid; place-items: center; padding: 32px 22px 75px; isolation: isolate; }
+.colorField { position: absolute; z-index: -1; top: 42%; left: 50%; width: min(1000px, 110vw); height: 690px; border-radius: 50%; background: conic-gradient(from 30deg, #a5c1f8, #d3a9ed, #ffc2d2, #ffe2af, #bde9d1, #a5c1f8); opacity: .47; filter: blur(110px); transform: translate(-50%, -50%); animation: colorDrift 23s linear infinite; pointer-events: none; }
+.content { width: 100%; max-width: 630px; text-align: center; }
+.eyebrow { margin: 0 0 22px; color: #856997; font-size: 10px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+.content h1 { margin: 0; font-size: clamp(44px, 5.4vw, 72px); line-height: 1.1; letter-spacing: -.073em; font-weight: 650; }
+.content h1 span { color: #7850ad; background: linear-gradient(100deg, #326dcc, #8753bd, #d96f9e, #d89650, #40a48f); background-size: 180% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: rainbowMove 12s linear infinite; }
+.lede { max-width: 470px; margin: 19px auto 31px; color: #77707b; font-size: 14px; line-height: 1.75; }
+.joinPanel { padding: 31px 33px 27px; border: 1px solid #e8e1e9; border-radius: 20px; background: #fff; box-shadow: 0 23px 67px #281e301a, 0 3px 10px #281e3009; text-align: left; }
+.joinPanel h2 { margin: 0 0 5px; font-size: 23px; font-weight: 700; letter-spacing: -.045em; }
+.joinPanel > p:first-of-type { margin: 0 0 25px; color: #8d8490; font-size: 12px; }
+.googleButton,.emailButton { display: flex; align-items: center; width: 100%; min-height: 50px; border-radius: 10px; font-family: inherit; font-size: 13px; font-weight: 750; }
+.googleButton { gap: 13px; padding: 0 15px; border: 1px solid #e5e0e7; background: #f9f8fa; color: #46404a; text-align: left; }
+.googleButton svg { flex: none; filter: grayscale(.35); }
+.googleButton span { flex: 1; }
+.googleButton small { flex: none; color: #aa9eae; font-size: 10px; font-weight: 750; }
+.googleButton:disabled { cursor: not-allowed; }
+.divider { position: relative; display: grid; place-items: center; height: 40px; color: #a89fa9; font-size: 10px; }
+.divider::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #eee9ee; }
+.divider span { position: relative; padding: 0 12px; background: #fff; }
+.emailButton { justify-content: space-between; padding: 0 16px; background: #29232e; color: #fff; text-decoration: none; }
+.emailButton:hover { background: #6d47a6; }
+.inviteNote { margin: 20px 0 0; color: #968c99; font-size: 11px; line-height: 1.65; }
+@keyframes colorDrift { 50% { transform: translate(-48%, -52%) rotate(180deg) scale(1.05); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes rainbowMove { to { background-position: 180% 50%; } }
+@media(max-width:600px) { .header { height: 72px; padding: 0 22px; } .wordmark img { height: 40px; } .stage { min-height: calc(100dvh - 72px); padding: 28px 20px 55px; } .content h1 { font-size: clamp(40px, 9vw, 56px); } .joinPanel { padding: 26px 21px 23px; } .lede { font-size: 13px; } .colorField { width: 135vw; height: 80vh; filter: blur(80px); } }
+@media(prefers-reduced-motion:reduce) { .colorField,.content h1 span { animation: none; } }
+
+.header { height: 76px; border-bottom: 1px solid #e9e5e8; }
+.wordmark img { height: 36px; }
+.signIn { color: #4f4953; font-size: 13px; font-weight: 600; }
+.content h1 { font-size: clamp(38px, 4.8vw, 62px); letter-spacing: -.055em; }
+.content h1 span { color: inherit; background: none; -webkit-text-fill-color: currentColor; animation: none; }
+.eyebrow { color: #716a75; font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: none; }
+@media(max-width:600px) { .header { height: 68px; } .wordmark img { height: 31px; } }
+
+}

@@ -1,0 +1,6 @@
+@layer legacy {
+.paper{box-sizing:border-box;width:min(100%,780px);min-height:760px;margin:0 auto;padding:56px clamp(30px,7vw,82px) 90px;background:#fff;box-shadow:0 18px 55px #1d182415;color:#211d26}.kicker{display:block;border-top:5px solid #6d48be;padding-top:21px;color:#6d48be;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}.title,.sectionTitle{display:block;width:100%;border:0;outline:0;background:transparent;color:#211d26;font-family:inherit;resize:none}.title{margin:18px 0 52px;font-size:clamp(32px,3.5vw,48px);line-height:1.1;font-weight:700;letter-spacing:-.05em}.sectionMeta{border-top:1px solid #e8e3eb;padding-top:22px;color:#8f8495;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}.sectionTitle{margin:20px 0 25px;font-size:27px;font-weight:700;letter-spacing:-.035em}.title:focus,.sectionTitle:focus{box-shadow:0 2px #6d48be}@media(max-width:700px){.paper{padding:32px 24px 60px;min-height:580px}}
+.title{margin-bottom:30px;min-height:0;overflow:hidden;font-size:clamp(28px,3vw,44px);resize:none}
+.sectionTitle{min-height:0;overflow:hidden;resize:none}
+
+}

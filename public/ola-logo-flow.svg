@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="40 4 292 202" role="img" aria-labelledby="title desc">
+  <title id="title">ola rainbow animation: color flow</title>
+  <desc id="desc">Color writes through the connected ola lettering, then the rainbow travels continuously along the diagonal without changing speed.</desc>
+  <style>.static-color { display: none; } @media (prefers-reduced-motion: reduce) { .draw { display: none; } .static-color { display: inline; } }</style>
+  <defs>
+    <path id="lettering" d="M112 125 C99 107 74 111 61 128 C43 150 49 181 69 187 C91 194 111 175 119 150 C125 130 118 114 100 116 C81 118 70 139 77 155 C84 171 101 169 118 157 C141 141 153 111 163 77 L183 25 C190 10 205 17 202 34 C201 55 176 91 150 128 C145 138 147 153 151 165 C155 187 176 193 196 177 C204 164 205 146 214 132 C224 119 246 118 260 130 C270 140 270 161 265 179 C249 193 218 188 207 170 C202 160 205 143 214 132 C224 119 246 118 260 130 C270 140 270 161 265 179 C263 193 277 193 286 185 C301 176 311 160 319 142"/>
+    <linearGradient id="rainbow" gradientUnits="userSpaceOnUse" x1="70" y1="205" x2="345" y2="5" spreadMethod="repeat">
+      <stop offset="0" stop-color="#326ee8"/>
+      <stop offset=".18" stop-color="#7754ca"/>
+      <stop offset=".41" stop-color="#d967af"/>
+      <stop offset=".64" stop-color="#f1a05d"/>
+      <stop offset=".84" stop-color="#39b5a4"/>
+      <stop offset="1" stop-color="#326ee8"/>
+      <animateTransform attributeName="gradientTransform" type="translate" from="0 0" to="275 -200" begin="6s" dur="12s" repeatCount="indefinite"/>
+    </linearGradient>
+    <linearGradient id="rainbow-static" gradientUnits="userSpaceOnUse" x1="70" y1="205" x2="345" y2="5">
+      <stop offset="0" stop-color="#326ee8"/>
+      <stop offset=".18" stop-color="#7754ca"/>
+      <stop offset=".41" stop-color="#d967af"/>
+      <stop offset=".64" stop-color="#f1a05d"/>
+      <stop offset=".84" stop-color="#39b5a4"/>
+      <stop offset="1" stop-color="#326ee8"/>
+    </linearGradient>
+  </defs>
+  <use href="#lettering" fill="none" stroke="#000000" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <use class="draw" href="#lettering" fill="none" stroke="url(#rainbow)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="1186 1186" stroke-dashoffset="1186">
+    <animate attributeName="stroke-dashoffset" from="1186" to="0" begin=".2s" dur="5.6s" fill="freeze" calcMode="spline" keySplines=".32 0 .24 1"/>
+  </use>
+  <use class="static-color" href="#lettering" fill="none" stroke="url(#rainbow-static)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

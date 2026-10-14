@@ -1,0 +1,8 @@
+@layer components {
+.panel{display:flex;flex-direction:column;width:100%;height:100%;min-width:0;min-height:0;background:var(--card);color:var(--foreground)}
+.header{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:72px;padding:16px 20px;border-bottom:1px solid var(--border)}
+.thread{display:flex;flex:1;flex-direction:column;gap:16px;min-height:0;overflow:auto;padding:20px 16px;overscroll-behavior:contain}
+.message{max-width:94%;align-self:flex-start;overflow-wrap:anywhere;border:1px solid var(--border);border-radius:12px;padding:10px 13px;background:var(--card)}
+.user{align-self:flex-end;background:var(--accent);border-color:transparent}
+.composer{display:grid;flex:none;gap:10px;padding:16px;border-top:1px solid var(--border);background:var(--card);max-height:65%;overflow-y:auto}
+}

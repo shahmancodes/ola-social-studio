@@ -1,0 +1,29 @@
+@layer legacy {
+.action {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 11px 17px;
+  border: 0;
+  border-radius: 999px;
+  background: #27232c;
+  box-shadow: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: normal;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.action:hover,
+.action:focus-visible { background: #47404d; color: #fff; }
+
+.action:focus-visible { outline: 2px solid #784bc6; outline-offset: 3px; }
+.action:disabled { cursor: not-allowed; opacity: .55; }
+.label { position: relative; z-index: 1; }
+
+}

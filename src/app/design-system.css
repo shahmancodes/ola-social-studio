@@ -1,0 +1,84 @@
+@layer theme, base, legacy, components, utilities;
+@import "tailwindcss" source("../");
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Manrope Variable', Manrope, ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --comment-cursor: url("/comment-cursor.svg") 2 2, pointer;
+  --radius: .625rem;
+  --background: #faf9fb;
+  --foreground: #27232d;
+  --card: #fff;
+  --card-foreground: #27232d;
+  --popover: #fff;
+  --popover-foreground: #27232d;
+  --primary: #2d2633;
+  --primary-foreground: #fff;
+  --secondary: #f0edf3;
+  --secondary-foreground: #483b52;
+  --muted: #f4f2f6;
+  --muted-foreground: #756c7d;
+  --accent: #f0eaf6;
+  --accent-foreground: #62437b;
+  --destructive: #b83f4d;
+  --border: #e7e2eb;
+  --input: #ded7e5;
+  --ring: #9172aa;
+  --ui-ink: var(--foreground);
+  --ui-muted: var(--muted-foreground);
+  --ui-border: var(--border);
+  --ui-surface: var(--card);
+  --ui-canvas: var(--background);
+  --ui-primary-hover: #44394d;
+  --ui-accent: #73528b;
+  --ui-accent-soft: var(--accent);
+  --ui-focus: var(--ring);
+  --ola-chat-width: clamp(360px, 29vw, 420px);
+}
+
+@layer components {
+  [data-comment-mode] [data-comment-target],
+  [data-comment-mode] [data-comment-target] * {
+    cursor: var(--comment-cursor);
+  }
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground font-sans antialiased; }
+  button, [role="button"] { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+}
+
+@layer components {
+  .rainbow-action { position: relative; isolation: isolate; overflow: hidden; }
+  .rainbow-action::before { content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0; background: linear-gradient(105deg,#3c6dcc,#8051c2 35%,#cc6099 67%,#e7a056); transition: opacity .2s ease; }
+  .rainbow-action:hover::before, .rainbow-action:focus-visible::before { opacity: 1; }
+}

@@ -1,0 +1,13 @@
+@layer legacy {
+.wrap { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.share, .revoke { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 9px 13px; border: 1px solid var(--ui-border); border-radius: 8px; background: #fff; color: #3f3549; font: inherit; font-size: 12px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.share:hover:not(:disabled) { border-color: #cbbdd4; background: var(--ui-accent-soft); color: #493651; }
+.revoke { border-color: #e3d4d7; color: #a33945; }
+.revoke:hover { border-color: #dbaeb5; background: #fff2f3; }
+.share:disabled { opacity: .55; }
+.share{width:38px;min-width:38px;height:38px;min-height:38px;padding:0}
+.preview { color: #604676; font-size: 12px; font-weight: 650; text-decoration: none; }
+.preview:hover { text-decoration: underline; text-underline-offset: 3px; }
+.error { color: #a33945; font-size: 11px; }
+
+}

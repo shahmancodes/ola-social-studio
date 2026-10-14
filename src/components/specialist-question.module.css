@@ -1,0 +1,4 @@
+@layer legacy {
+.question{width:100%;max-width:650px}.question h2{margin:0 0 16px;font-size:20px;color:#302638}.options{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}.options button{border:1px solid #d9cce2;border-radius:99px;background:#fff;padding:9px 13px;cursor:pointer}.question form{display:flex;gap:9px}.question input{flex:1;min-width:0;border:1px solid #ddd2e1;border-radius:9px;padding:10px 12px;font:inherit}.question form button{background:#6f368f;color:#fff;border:0;border-radius:9px;padding:0 15px;cursor:pointer}.question button:disabled{opacity:.5;cursor:default}.question p[role=alert]{color:#a52b3a}
+
+}

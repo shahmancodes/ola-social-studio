@@ -1,0 +1,24 @@
+@layer legacy {
+.composer { width: 100%; }
+.form { position: relative; display: flex; align-items: flex-end; gap: 16px; width: 100%; min-height: 70px; padding: 11px 12px 11px 25px; border: 1px solid #ded8e1; border-radius: 16px; background: #fff; box-shadow: 0 12px 36px #29252d0b; transition: border-color .2s ease, box-shadow .2s ease; }
+.form:focus-within { border-color: #b99fc9; box-shadow: 0 16px 45px #2c203312, 0 0 0 4px #a883c21b; }
+.form textarea { display: block; flex: 1; width: 100%; min-width: 0; min-height: 44px; max-height: 160px; padding: 10px 0; resize: none; border: 0; outline: none; background: transparent; color: #25202b; font: inherit; font-size: 16px; line-height: 24px; overflow-y: auto; }
+.form textarea::placeholder { color: #aaa3af; }
+.form textarea:disabled { opacity: .7; }
+.submit { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border: 0; border-radius: 10px; background: #29252d; color: #fff; cursor: pointer; transition: background .2s ease; }
+.submit:hover:not(:disabled) { background: #47404d; }
+.submit:disabled { opacity: .35; cursor: default; }
+.submit:focus-visible { outline: 3px solid #9f75bd; outline-offset: 3px; }
+.spinner { width: 18px; height: 18px; border: 2px solid #ffffff70; border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+.error { position: absolute; top: calc(100% + 10px); left: 2px; margin: 0; color: #b43e4e; font-size: 13px; }
+.starters { display: grid; justify-items: center; gap: 12px; margin-top: 26px; }
+.starters > span { color: #817985; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.starters > div { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.starters button { min-height: 36px; padding: 7px 12px; border: 1px solid #e3dce5; border-radius: 8px; background: #fff; color: #514858; font-size: 12px; font-weight: 650; cursor: pointer; }
+.starters button:hover:not(:disabled) { border-color: #c9b9d3; background: #f2edf5; color: #493651; }
+.hint { margin: 17px 0 0; color: #a099a3; font-size: 11px; text-align: center; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 600px) { .form { gap: 10px; min-height: 64px; padding: 9px 9px 9px 18px; border-radius: 14px; } .form textarea { font-size: 15px; } .submit { width: 42px; height: 42px; border-radius: 9px; } .starters { margin-top: 21px; } }
+@media (prefers-reduced-motion: reduce) { .form,.submit { transition: none; } .spinner { animation-duration: 1.5s; } }
+
+}

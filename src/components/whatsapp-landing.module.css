@@ -1,0 +1,124 @@
+@layer legacy {
+.page { display: grid; align-items: center; width: min(100%, 1380px); height: calc(100dvh - 76px); min-height: 0; margin: 0 auto; padding: 20px clamp(24px, 5vw, 72px); overflow: hidden; color: #231f27; }
+.hero { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(360px, .88fr); align-items: center; gap: clamp(25px, 4vw, 75px); width: 100%; height: 100%; min-height: 0; isolation: isolate; }
+.heroCopy { position: relative; z-index: 1; padding: 15px 0; }
+.heroCopy::before { content: ""; position: absolute; z-index: -1; top: 7%; left: -24%; width: min(740px, 130%); height: 490px; border-radius: 50%; background: conic-gradient(#a4bdf9,#d9a9f0,#ffc5ce,#ffe0ad,#bdeacb,#a4bdf9); opacity: .24; filter: blur(82px); animation: glowFloat 18s ease-in-out infinite; pointer-events: none; }
+.eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 22px; color: #65836b; font-size: 10px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+.greenDot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: #42be76; box-shadow: 0 0 0 4px #42be761c; }
+.hero h1 { max-width: 760px; margin: 0; padding-bottom: .14em; background: linear-gradient(105deg,#366bd0 0%,#7651c3 20%,#cc60a5 43%,#e69d59 64%,#38a891 83%,#366bd0 100%); background-size: 260% 100%; background-clip: text; color: transparent; -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: clamp(57px, 5.45vw, 83px); font-weight: 680; line-height: 1.14; letter-spacing: -.08em; animation: rainbowMove 11s linear infinite, titleFloat 7s ease-in-out infinite; }
+.hero h1 span { -webkit-text-fill-color: #4ab976; }
+.connectButton { display: inline-flex; align-items: center; gap: 11px; min-height: 55px; margin-top: 42px; padding: 10px 18px 10px 13px; border: 1px solid #cde8d4; border-radius: 11px; background: #f5fcf7; color: #285a3a; font: inherit; font-size: 13px; font-weight: 760; box-shadow: 0 8px 24px #42945a0b; cursor: pointer; }
+.connectButton:hover { border-color: #a8d9b6; background: #ebf8ee; transform: translateY(-2px); box-shadow: 0 11px 25px #42945a19; }
+.connectButton img { display: block; width: 23px; height: 23px; flex: none; }
+.connectButton.joinButton { align-items: flex-end; gap: 3px; min-height: 45px; padding: 9px 14px; border-color: #29252d; border-radius: 10px; background: transparent; box-shadow: none; color: #29252d; text-decoration: none; }
+.connectButton.joinButton:hover { border-color: #29252d; background: #ffffff55; box-shadow: 0 6px 20px #29252d12; }
+.joinButton:focus-visible { outline: 2px solid #29252d; outline-offset: 3px; }
+.joinWord { padding-bottom: 2px; font-size: 17px; line-height: 1; }
+.joinButton .joinLogo { width: 39px; height: 27px; margin: 0 0 -1px; object-fit: contain; }
+.joinPeriod { margin: 0 0 1px -3px; color: #29252d; font-size: 18px; line-height: 1; }
+.mobileJoinButton { display: none; }
+.heroVisual { position: relative; align-self: stretch; width: 100%; height: 100%; min-height: 0; padding-top: clamp(24px, 5vh, 48px); }
+.conversation { display: grid; align-content: start; gap: 8px; width: 100%; padding: 0; }
+.messageRow { display: flex; align-items: flex-end; gap: 10px; min-width: 0; animation: messageEnter .7s cubic-bezier(.18,.72,.25,1) both; }
+.fromYou { justify-content: flex-end; padding-left: 55px; }
+.fromOla { justify-content: flex-start; padding-right: 25px; }
+.olaAvatar { display: grid; place-items: center; width: 37px; height: 37px; flex: none; }
+.olaAvatarLogo { display: block; width: 32px; height: 27px; object-fit: contain; }
+.bubble { max-width: 100%; padding: 10px 12px 7px; border: 1px solid #eeebee; border-radius: 15px; background: #fff; box-shadow: 0 12px 31px #3b3c4220, 0 2px 5px #3b3c4209; color: #33383a; font-size: 12px; line-height: 1.4; }
+.bubble small { display: block; margin-top: 6px; color: #9fa6a2; font-size: 9px; text-align: right; }
+.bubble .timeMeta { display: flex; align-items: center; justify-content: flex-end; gap: 3px; }
+.pendingTime { visibility: hidden; }
+.readTicks { display: block; width: 18px; height: 12px; color: #53a7bd; }
+.sender { display: block; margin-bottom: 4px; color: #379e60; font-size: 10px; font-weight: 800; letter-spacing: .01em; }
+.fromOla .bubble { border-bottom-left-radius: 5px; }
+.fromYou .bubble { border-color: #d5ead8; border-bottom-right-radius: 5px; background: #def4df; box-shadow: 0 12px 30px #3a94501c, 0 2px 5px #3a94500a; }
+.fromYou .bubble small { color: #7ca88a; }
+.thinkingBubble { min-width: 155px; color: #71777a; font-style: italic; }
+.typingCursor { display: inline-block; width: 1px; height: 1em; margin-left: 2px; background: #56ad78; vertical-align: -.16em; animation: cursorBlink .7s step-end infinite; }
+.posterMessage { width: 224px; }
+.posterMessage img { display: block; width: 100%; height: auto; margin-top: 8px; border-radius: 9px; }
+.dialog { width: min(480px, calc(100vw - 28px)); max-height: min(90dvh, 740px); padding: 34px; overflow: auto; border: 1px solid #dce9df; border-radius: 22px; background: #fff; box-shadow: 0 32px 100px #17281e45; color: #25242a; }
+.dialog::backdrop { background: #181e1bb5; backdrop-filter: blur(5px); }
+.closeDialog { position: absolute; top: 18px; right: 18px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 50%; background: #f1f4f1; color: #77847a; font-size: 24px; line-height: 1; cursor: pointer; }
+.dialogLogo { display: block; width: 44px; height: 44px; }
+.dialog h2 { margin: 24px 0 8px; font-size: clamp(28px, 4vw, 38px); font-weight: 680; line-height: 1.12; letter-spacing: -.065em; }
+.dialogIntro { margin: 0; color: #817b83; font-size: 13px; line-height: 1.6; }
+.dialogHint,.unavailable,.muted { margin: 22px 0 0; color: #89818a; font-size: 12px; line-height: 1.6; }
+.linkedNumbers { display: grid; justify-items: start; gap: 7px; margin-top: 22px; }
+.linkedNumbers span { color: #7d987f; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
+.linkedNumbers strong { color: #335841; font-size: 13px; font-weight: 700; }
+.successMessage { margin: 17px 0 0; color: #398253; font-size: 12px; }
+.generateButton { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 48px; margin-top: 27px; padding: 12px 16px; border: 1px solid #d2ead7; border-radius: 9px; background: #eff9f1; color: #2f7747; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.generateButton:hover { border-color: #b3dcbd; background: #e4f5e8; }
+.generateButton:disabled { opacity: .6; cursor: wait; }
+.codePanel { margin-top: 25px; padding: 18px; border: 1px solid #d8e8dc; border-radius: 12px; background: #f4faf5; }
+.codePanel > span { color: #6a916e; font-size: 9px; font-weight: 800; letter-spacing: .11em; }
+.codeRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 7px 0; }
+.codeRow strong { color: #244c31; font-size: clamp(29px, 4vw, 41px); font-weight: 730; letter-spacing: .18em; }
+.codeRow button { padding: 8px 10px; border: 1px solid #cde1d0; border-radius: 7px; background: #fff; color: #3c8454; font: inherit; font-size: 10px; font-weight: 750; cursor: pointer; }
+.codePanel small { display: block; color: #789480; font-size: 10px; line-height: 1.5; }
+.codePanel a { display: inline-flex; align-items: center; gap: 8px; margin-top: 16px; color: #2a8f4e; font-size: 11px; font-weight: 760; text-decoration: none; }
+.codePanel a:hover { text-decoration: underline; }
+.codePanel a span { margin-left: 5px; }
+.errorMessage { margin: 16px 0 0; color: #b34f5b; font-size: 11px; }
+@keyframes rainbowMove { to { background-position: 200% 50%; } }
+@keyframes titleFloat { 50% { transform: translateY(-5px); } }
+@keyframes messageEnter { from { opacity: 0; transform: translateY(24px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes cursorBlink { 50% { opacity: 0; } }
+@keyframes glowFloat { 50% { transform: translate(5%, -5%) rotate(160deg) scale(1.07); } }
+@media(max-width:1050px) { .hero { grid-template-columns: minmax(0, 1fr) minmax(330px, .8fr); gap: 20px; } .hero h1 { font-size: clamp(52px, 5vw, 72px); } }
+@media(max-width:900px) {
+  .page { height: auto; min-height: calc(100dvh - 76px); padding: 15px 24px 24px; overflow: visible; }
+  .hero { height: auto; grid-template-columns: 1fr; grid-template-rows: auto auto; align-items: stretch; gap: 8px; }
+  .heroCopy { padding: 0; }
+  .hero h1 { max-width: 760px; font-size: clamp(48px, 7vw, 68px); }
+  .connectButton { min-height: 48px; margin-top: 16px; }
+  .connectButton.desktopJoinButton { display: none; }
+  .connectButton.mobileJoinButton { display: inline-flex; justify-self: center; margin-top: 18px; animation: messageEnter .5s ease-out both; }
+  .heroVisual { height: auto; padding-top: 0; }
+}
+@media(max-width:780px) { .page { min-height: calc(100dvh - 62px); } }
+@media(max-width:650px) {
+  .page { padding: 12px 21px 8px; }
+  .hero { gap: 8px; }
+  .eyebrow { margin-bottom: 10px; }
+  .hero h1 { font-size: clamp(40px, 10vw, 54px); line-height: 1.1; }
+  .heroCopy::before { top: 1%; left: -25%; width: 140%; height: 400px; filter: blur(70px); }
+  .connectButton { min-height: 45px; margin-top: 16px; }
+  .conversation { gap: 5px; padding: 4px 0 12px; }
+  .messageRow { gap: 8px; }
+  .fromYou { padding-left: 34px; }
+  .fromOla { padding-right: 4px; }
+  .olaAvatar { width: 35px; height: 35px; }
+  .olaAvatarLogo { width: 30px; height: 25px; }
+  .bubble { padding: 9px 11px 7px; font-size: 11px; }
+  .bubble small { margin-top: 3px; }
+  .sender { margin-bottom: 2px; }
+  .posterMessage { width: min(140px, 100%); }
+  .dialog { padding: 27px 22px; }
+}
+@media(max-height:700px) {
+  .page { padding-top: 10px; padding-bottom: 6px; }
+  .posterMessage { width: min(150px, 100%); }
+}
+@media(max-height:780px) and (min-width:901px) {
+  .heroVisual { padding-top: 16px; }
+  .conversation { gap: 5px; }
+  .bubble small { margin-top: 4px; }
+  .posterMessage { width: min(150px, 100%); }
+}
+@media(max-height:700px) and (max-width:900px) {
+  .hero { gap: 4px; }
+  .eyebrow { margin-bottom: 8px; }
+  .hero h1 { font-size: clamp(35px, 9vw, 48px); line-height: 1.08; }
+  .connectButton { min-height: 42px; margin-top: 12px; }
+  .conversation { gap: 6px; }
+}
+@media(max-height:600px) and (max-width:900px) {
+  .page { padding-top: 7px; padding-bottom: 4px; }
+  .hero h1 { font-size: clamp(32px, 8.5vw, 42px); }
+  .posterMessage { width: min(148px, 100%); }
+}
+@media(prefers-reduced-motion:reduce) { .hero h1,.heroCopy::before,.conversation,.messageRow,.typingCursor,.connectButton.mobileJoinButton { animation: none; } .hero h1 { background-position: 45% 50%; } }
+
+}

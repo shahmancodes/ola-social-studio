@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+  <rect width="1080" height="1920" fill="#F5F0FF"/>
+  <circle cx="1030" cy="560" r="340" fill="#E9DDFF"/>
+  <circle cx="-70" cy="1350" r="300" fill="#E6F8E9"/>
+  <rect x="76" y="310" width="54" height="8" rx="4" fill="#6944C8"/>
+  <text x="150" y="322" font-family="Arial,sans-serif" font-size="28" font-weight="700" fill="#241039">STUDY CLINIC</text>
+  <text x="76" y="650" font-family="Arial,sans-serif" font-size="91" font-weight="700" fill="#241039">A little help</text>
+  <text x="76" y="758" font-family="Arial,sans-serif" font-size="91" font-weight="700" fill="#241039">with your next</text>
+  <text x="76" y="866" font-family="Arial,sans-serif" font-size="91" font-weight="700" fill="#241039">question.</text>
+  <rect x="76" y="1000" width="928" height="330" rx="34" fill="#FFFFFF"/>
+  <text x="132" y="1118" font-family="Arial,sans-serif" font-size="47" font-weight="700" fill="#241039">Free study clinic</text>
+  <text x="132" y="1195" font-family="Arial,sans-serif" font-size="40" fill="#241039">22 October · 18:00 HKT</text>
+  <rect x="76" y="1410" width="928" height="104" rx="24" fill="#6944C8"/>
+  <text x="540" y="1478" text-anchor="middle" font-family="Arial,sans-serif" font-size="40" font-weight="700" fill="#FFFFFF">Save your place</text>
+</svg>

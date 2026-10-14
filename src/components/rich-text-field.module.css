@@ -1,0 +1,18 @@
+@layer legacy {
+.editor{color:var(--article-color,#29242e)}
+.toolbar{display:flex;align-items:center;gap:4px;min-width:0;flex-wrap:wrap}
+.toolbarLabel{margin-right:8px;color:#867b8e;font-size:11px;font-weight:500}
+.toolbar button{height:32px;min-height:32px;border:1px solid transparent;border-radius:6px;color:#665a70;font-size:12px;font-weight:500;box-shadow:none}
+.toolbar button:hover:not(:disabled){background:#f4eff8;color:#60467c}
+.toolbar button[aria-pressed=true]{border-color:#ded1eb;background:#f1e9f8;color:#68438a}
+.toolbar button:disabled{opacity:.35}
+.toolbarHint{margin-left:auto;padding-left:12px;color:#a397ac;font-size:10px}
+.divider{height:18px;border-left:1px solid #e5dfe9;margin:0 6px}
+.body{min-height:290px;outline:none;font:400 var(--article-body-size,17px)/1.7 Arial,sans-serif}
+.body:focus{box-shadow:inset 0 -1px #d2bce7}
+.body p{margin:0 0 1.1em}
+.body ul,.body ol{padding-left:1.5em}
+.body li{margin:0 0 .45em}
+@media(max-width:700px){.toolbarHint{display:none}}
+
+}

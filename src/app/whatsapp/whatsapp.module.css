@@ -1,0 +1,9 @@
+@layer legacy {
+.shell { height: 100dvh; overflow: hidden; background: #fbfaf8; font-family: 'Manrope Variable', Manrope, sans-serif; }
+.header { display: flex; align-items: center; justify-content: space-between; height: 76px; padding: 0 clamp(24px, 5vw, 72px); border-bottom: 1px solid #e9e5e8; }
+.wordmark { display: inline-flex; align-items: center; text-decoration: none; }
+.wordmark img { display: block; width: auto; height: 36px; }
+@media(max-width:900px) { .shell { height: auto; min-height: 100dvh; overflow: visible; } .headerJoin { display: none; } }
+@media(max-width:780px) { .header { height: 62px; padding: 0 21px; } .wordmark img { height: 31px; } }
+
+}

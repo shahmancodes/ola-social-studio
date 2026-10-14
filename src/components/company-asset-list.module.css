@@ -1,0 +1,62 @@
+@layer legacy {
+.library { margin-top: 26px; }
+.filters { display: flex; gap: 5px; overflow-x: auto; padding: 0 0 13px; border-bottom: 1px solid #e8e2e9; scrollbar-width: thin; }
+.filters button { display: inline-flex; align-items: center; gap: 7px; flex: none; padding: 8px 11px; border: 0; border-radius: 8px; background: transparent; color: #817984; font: inherit; font-size: 11px; font-weight: 650; cursor: pointer; }
+.filters button:hover { color: #67478c; background: #f3eef6; }
+.filters button.selected { color: #492d70; background: #eee5f4; }
+.filters span { color: #a79ba9; font-size: 10px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(166px, 1fr)); gap: 18px; padding-top: 22px; }
+.card { min-width: 0; overflow: hidden; border: 1px solid #e8e3e9; border-radius: 10px; background: #fff; }
+.card:hover { border-color: #bbaac5; }
+.item { display: block; min-width: 0; width: 100%; padding: 0; border: 0; background: transparent; color: #25202a; text-align: left; cursor: pointer; }
+.visual { display: grid; place-items: center; width: 100%; aspect-ratio: 1.18; overflow: hidden; background: #f8f7f8; }
+.visual img { display: block; width: 100%; height: 100%; padding: 14px; object-fit: contain; }
+.photo .visual { padding: 0; }
+.photo .visual img { padding: 0; object-fit: cover; }
+.darkPreview .visual { background: #25212b; }
+.item:focus-visible { outline: 2px solid #8053a4; outline-offset: -3px; }
+.fileIcon { display: grid; place-items: center; width: 100%; height: 100%; color: #715597; font-size: 29px; font-weight: 550; letter-spacing: -.07em; }
+.caption { display: grid; gap: 5px; padding: 11px 12px 13px; }
+.caption strong { overflow: hidden; font-size: 12px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.caption > span { color: #968c9a; font-size: 11px; }
+.cardActions { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 7px 9px; border-top: 1px solid #f0ebf1; }
+.cardActions :is(a,button),.cardConfirm button { min-height: 32px; padding: 6px 8px; border: 0; border-radius: 7px; background: transparent; color: #604479; font: inherit; font-size: 11px; font-weight: 720; text-decoration: none; cursor: pointer; }
+.cardActions :is(a,button):hover,.cardConfirm button:hover { background: #f5eff8; }
+.cardActions button { color: #a45360; }
+.cardActions button:hover { background: #fdf0f2; }
+.cardActions button:disabled { opacity: .5; cursor: wait; }
+.cardActions :is(a,button):focus-visible,.cardConfirm button:focus-visible { outline: 2px solid #8053a4; outline-offset: 1px; }
+.cardConfirm { display: grid; gap: 5px; padding: 8px 10px 9px; border-top: 1px solid #f0ebf1; }
+.cardConfirm > span { color: #6d5962; font-size: 11px; font-weight: 680; }
+.cardConfirm > div { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.cardConfirm .confirmAction { color: #a53e4e; }
+.cardConfirm .confirmAction:hover { background: #fdf0f2; }
+.cardConfirm button:disabled { opacity: .55; cursor: wait; }
+.cardError { margin: 0; padding: 0 10px 10px; color: #b42318; font-size: 11px; line-height: 1.4; }
+.empty { padding: 45px 0; color: #8c828e; font-size: 13px; }
+.loadSentinel { min-height: 60px; padding: 26px 0 8px; color: #a095a2; font-size: 11px; text-align: center; }
+.previewDialog { width: min(740px, calc(100vw - 30px)); max-height: min(90dvh, 900px); padding: 0; overflow: auto; border: 1px solid #e6e0eb; border-radius: 20px; box-shadow: 0 34px 100px #170d2860; background: #fff; color: #211b26; }
+.previewDialog::backdrop { background: #1a14268c; backdrop-filter: blur(5px); }
+.previewHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 24px 27px 20px; }
+.previewHeader span { color: #8e719f; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.previewHeader h2 { margin: 7px 0 0; overflow-wrap: anywhere; font-size: clamp(20px, 3vw, 28px); font-weight: 680; letter-spacing: -.055em; }
+.previewHeader .close { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 0; border-radius: 50%; background: #f5f1f7; color: #72677a; cursor: pointer; font-size: 22px; line-height: 1; }
+.previewVisual { display: grid; place-items: center; min-height: 250px; max-height: 510px; margin: 0 27px; overflow: hidden; border-radius: 13px; background: linear-gradient(135deg,#eaf5ff,#f4edff); }
+.previewVisual img { display: block; max-width: min(100%, 580px); max-height: 510px; width: auto; height: auto; object-fit: contain; }
+.previewVisual > span { color: #7a56ad; font-size: 85px; font-weight: 700; letter-spacing: -.08em; }
+.previewDark { background: #282231; }
+.previewFooter { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 22px 27px 25px; }
+.previewFooter p { max-width: 320px; margin: 0; color: #8d8391; font-size: 11px; line-height: 1.5; }
+.previewActions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.previewActions a,.previewActions button { display: inline-flex; align-items: center; justify-content: center; gap: 12px; min-height: 38px; padding: 9px 13px; border: 1px solid #e6deea; border-radius: 9px; background: white; color: #5d4178; text-decoration: none; font: inherit; font-size: 11px; font-weight: 750; cursor: pointer; }
+.previewActions a { border-color: #29232f; background: #29232f; color: white; }
+.previewActions a:hover { background: #654698; border-color: #654698; }
+.previewActions .delete { border-color: transparent; color: #aa6670; }
+.previewActions .delete:hover { background: #fdf1f2; }
+.previewActions .deleteConfirm { border-color: #aa4958; background: #aa4958; color: white; }
+.previewActions button:disabled { opacity: .6; cursor: wait; }
+.deleteNote,.deleteError { margin: -8px 27px 24px; color: #996c75; font-size: 11px; line-height: 1.5; }
+.deleteError { color: #b42318; }
+@media(max-width:600px) { .library { margin-top: 24px; } .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; padding-top: 18px; } .visual img { padding: 10px; } .photo .visual img { padding: 0; } .previewHeader { padding: 20px; } .previewVisual { min-height: 220px; margin: 0 20px; } .previewFooter { padding: 20px; } }
+
+}
