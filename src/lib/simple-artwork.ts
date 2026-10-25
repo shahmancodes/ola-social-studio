@@ -1,10 +1,12 @@
+import { generateText, callModel } from "./ai-usage";
+import { modelFor, providerEnabled, fallbackAllowed } from "./ai-execution";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createGateway, generateText, stepCountIs } from "ai";
+import { createGateway, stepCountIs } from "ai";
 import sharp from "sharp";
 import { z } from "zod";
-import { OpenRouter, callModel, hasToolCall, serverTool, stepCountIs as openRouterStepCountIs, tool } from "@openrouter/agent";
+import { OpenRouter, hasToolCall, serverTool, stepCountIs as openRouterStepCountIs, tool } from "@openrouter/agent";
 import { companyStorageDir, type Brand } from "./platform";
 import { fetchImage } from "./internet-assets";
 
@@ -17,10 +19,10 @@ const CandidateSchema = ArtworkSchema.omit({ status: true, localPath: true, erro
 
 async function openRouterArtwork(prompt: string) {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return [];
+  if (!apiKey || !providerEnabled("openrouter")) return [];
   let submitted: z.infer<typeof CandidateSchema>[] | undefined;
   const submit = tool({ name: "submit_artwork", description: "Submit up to two sourced optional assets, or an empty array.", inputSchema: z.object({ assets: z.array(CandidateSchema).max(2) }), outputSchema: z.object({ accepted: z.boolean() }), execute: async ({ assets }) => { submitted = assets; return { accepted: true }; } });
-  const result = callModel(new OpenRouter({ apiKey }), { model: process.env.OPENROUTER_MODEL || "qwen/qwen3.6-35b-a3b", input: `${prompt}\nUse web search, then call submit_artwork.`, tools: [serverTool({ type: "openrouter:web_search", parameters: { maxResults: 8 } }), submit] as const, stopWhen: [hasToolCall("submit_artwork"), openRouterStepCountIs(8)], doomLoop: true });
+  const result = callModel(new OpenRouter({ apiKey }), { model: modelFor("openrouter"), input: `${prompt}\nUse web search, then call submit_artwork.`, tools: [serverTool({ type: "openrouter:web_search", parameters: { maxResults: 8 } }), submit] as const, stopWhen: [hasToolCall("submit_artwork"), openRouterStepCountIs(8)], doomLoop: true });
   await result.getText();
   return submitted ?? [];
 }
@@ -31,10 +33,10 @@ export async function researchArtwork(input: { projectId: string; companyId: str
     const prompt = `Search the web for up to 2 optional artwork assets for a ${input.type} about ${input.brief}. Brand: ${JSON.stringify(input.brand)}. Prefer original 2D art, clipart, vector icons, diagrams, emoji, stickers or simple graphics; real-life photography is usually a poor fit. Inspect relevant options until you can justify them. A collection page is not a direct asset URL. If none adds value, return an empty assets array. Record rights honestly; do not assume public means reusable.`;
     let candidates: z.infer<typeof CandidateSchema>[];
     try {
-      if (!process.env.AI_GATEWAY_API_KEY) throw new Error("Vercel is not configured.");
+      if (!providerEnabled("vercel")) throw new Error("Vercel is not configured.");
       const gateway = createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY });
       const result = await generateText({
-      model: gateway(process.env.VERCEL_AI_MODEL || "openai/gpt-6-luna"),
+      model: gateway(modelFor("vercel")),
       tools: { webSearch: gateway.tools.perplexitySearch({ maxResults: 6, maxTokensPerPage: 900, maxTokens: 5000, country: "HK", searchLanguageFilter: ["en"] }) },
       stopWhen: stepCountIs(4), maxOutputTokens: 1800,
       prompt: `${prompt} Return ONLY JSON {"assets":[{"title":"...","sourcePageUrl":"https://...","assetUrl":"https://... direct downloadable image","rights":"specific licence/rights evidence or unverified","attribution":"...","reason":"why it improves comprehension or composition","use":true}]}.`,
@@ -42,7 +44,7 @@ export async function researchArtwork(input: { projectId: string; companyId: str
       const generated = JSON.parse(result.text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
       candidates = z.array(CandidateSchema).max(2).parse(generated.assets ?? []);
     } catch (error) {
-      if (!process.env.OPENROUTER_API_KEY) throw error;
+      if (!providerEnabled("openrouter") || (!fallbackAllowed() && providerEnabled("vercel"))) throw error;
       candidates = await openRouterArtwork(prompt);
     }
     const output: Artwork[] = [];
@@ -59,5 +61,5 @@ export async function researchArtwork(input: { projectId: string; companyId: str
       } catch (error) { output.push({ ...candidate, status: "failed", error: error instanceof Error ? error.message : String(error) }); }
     }
     return output;
-  } catch (error) { process.stderr.write(`Artwork research skipped: ${String(error)}\n`); return []; }
+  } catch (error) { if (!fallbackAllowed()) throw error; process.stderr.write(`Artwork research skipped: ${String(error)}\n`); return []; }
 }

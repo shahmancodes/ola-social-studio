@@ -7,6 +7,7 @@ import JSZip from "jszip";
 const originalCwd = process.cwd();
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), "content-platform-test-"));
 try {
+  await fs.symlink(path.join(originalCwd, "node_modules"), path.join(temp, "node_modules"), "dir");
   process.chdir(temp);
   const auth = await import("./lib/platform-auth");
   const platform = await import("./lib/platform");
@@ -139,13 +140,19 @@ try {
     const intakeId = intake.createIntakeRequest(companyA, alice, "Create something about home learning");
     await intake.advanceIntake(intakeId);
     assert.equal(database.projectRow(intakeId)?.status, "awaiting-input");
-    assert.match(workflow.workflowState(intakeId)?.question?.text ?? "", /Instagram Story or a carousel/i);
-    assert.match((await requestWorkspace.requestSnapshot(intakeId)).question?.text ?? "", /Instagram Story or a carousel/i);
+    assert.match(workflow.workflowState(intakeId)?.question?.text ?? "", /Instagram Story, a carousel or a poster/i);
+    assert.match((await requestWorkspace.requestSnapshot(intakeId)).question?.text ?? "", /Instagram Story, a carousel or a poster/i);
     intake.answerIntake(intakeId, "Instagram Story");
+    await intake.advanceIntake(intakeId);
+    assert.match(workflow.workflowState(intakeId)?.question?.text ?? "", /who.*for/i);
+    intake.answerIntake(intakeId, "Families supporting home learning");
+    await intake.advanceIntake(intakeId);
+    assert.match(workflow.workflowState(intakeId)?.question?.text ?? "", /tone/i);
+    intake.answerIntake(intakeId, "Friendly and practical");
     await intake.advanceIntake(intakeId);
     assert.equal(database.projectRow(intakeId)?.content_type, "story");
     assert.equal(workflow.workflowState(intakeId)?.specialist, "story");
-    assert.deepEqual(workflow.workflowEvents(intakeId).map((event) => event.kind), ["prompt", "request-created", "question", "answer", "route"]);
+    assert.deepEqual(workflow.workflowEvents(intakeId).map((event) => event.kind), ["prompt", "request-created", "question", "answer", "question", "answer", "question", "answer", "route"]);
     const comingSoonId = intake.createIntakeRequest(companyA, alice, "Write an article about revision techniques");
     await intake.advanceIntake(comingSoonId);
     assert.equal(database.projectRow(comingSoonId)?.status, "coming-soon");
@@ -166,6 +173,28 @@ try {
     if (priorGateway === undefined) delete process.env.AI_GATEWAY_API_KEY; else process.env.AI_GATEWAY_API_KEY = priorGateway;
     if (priorOpenRouter === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = priorOpenRouter;
   }
+  // Poster follows the normal company snapshot, measured export and versioning path.
+  const posterFont = await platform.storeCompanyAsset(companyA, "Manrope.woff2", await fs.readFile(path.join(originalCwd, "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2")), "font/woff2", "font");
+  platform.saveBrand(companyA, { ...platform.getBrand(companyA), fontAssetIds: [posterFont] });
+  const posterId = platform.createProjectRecord({ companyId: companyA, creatorId: alice, contentType: "poster", brief: "Create an A4 poster about one useful idea." });
+  const poster = await simple.saveSimpleArtifact(posterId, { type: "poster", headline: "One useful idea.", subline: "Make it clear.", cta: "Start here.", designVersion: 2 });
+  const posterArtifact = JSON.parse(poster.artifact_json!);
+  const posterMeta = await sharp(posterArtifact.imagePath).metadata();
+  assert.equal(posterMeta.width, 1240); assert.equal(posterMeta.height, 1754);
+  assert.equal(posterArtifact.renderEvidence[0].fonts.some((font: string) => font.includes("Manrope.woff2")), true);
+  assert.equal((await requestWorkspace.requestSnapshot(posterId)).output?.canOpen, true);
+  const firstPosterBytes = await fs.readFile(posterArtifact.imagePath);
+  const editedPoster = await simple.saveSimpleArtifact(posterId, { ...posterArtifact, headline: "A clearer idea." }, poster.version);
+  assert.notEqual(JSON.parse(editedPoster.artifact_json!).imagePath, posterArtifact.imagePath);
+  assert.deepEqual(await fs.readFile(posterArtifact.imagePath), firstPosterBytes);
+  assert.equal((await gates.reviewSimpleExport(simple.SimpleArtifactSchema.parse(JSON.parse(editedPoster.artifact_json!)))).passed, true);
+  await whatsapp.processWhatsAppMessage({ phone: "85212345678", externalId: "poster-brief", text: "Create a poster about shared learning" });
+  let posterConversation = database.db().prepare("SELECT state_json FROM conversations WHERE phone=?").get("85212345678") as { state_json: string };
+  if (!JSON.parse(posterConversation.state_json).projectId) {
+    await whatsapp.processWhatsAppMessage({ phone: "85212345678", externalId: "poster-company", text: "Company A" });
+    posterConversation = database.db().prepare("SELECT state_json FROM conversations WHERE phone=?").get("85212345678") as { state_json: string };
+  }
+  assert.equal(database.projectRow(JSON.parse(posterConversation.state_json).projectId)?.content_type, "poster");
   process.stdout.write("Platform smoke checks passed.\n");
 } finally {
   process.chdir(originalCwd);

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     for (const status of change.value?.statuses ?? []) db().prepare("UPDATE messages SET status=? WHERE external_id=? AND direction='out'").run(status.status, status.id);
     for (const message of change.value?.messages ?? []) {
       const media = message.image ?? message.document;
-      await processWhatsAppMessage({ phone: String(message.from), externalId: String(message.id), text: message.text?.body ?? message.button?.text, media: media?.id ? { id: media.id, name: media.filename ?? "reference-image" } : undefined });
+      await processWhatsAppMessage({ phone: String(message.from), externalId: String(message.id), text: message.text?.body ?? message.button?.text ?? message.interactive?.button_reply?.title ?? message.interactive?.list_reply?.title ?? media?.caption, media: media?.id ? { id: media.id, name: media.filename ?? "reference-image" } : undefined });
     }
   }
   return NextResponse.json({ ok: true });

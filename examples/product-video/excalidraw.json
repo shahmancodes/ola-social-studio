@@ -1,0 +1,18 @@
+{
+  "url": "https://excalidraw.com", "feature": "Make room for your next idea.", "brand": "Excalidraw", "accent": "#6965db",
+  "steps": [
+    { "label": "Start with a blank canvas" },
+    { "label": "Give your idea a shape", "actions": [
+      { "type": "click", "selector": "button[aria-label='Rectangle']" },
+      { "type": "drag", "from": {"x":440,"y":350}, "to":{"x":690,"y":550} },
+      { "type": "press", "selector": "body", "key":"Escape" }
+    ] },
+    { "label": "Connect the next step", "actions": [
+      { "type": "click", "selector": "button[aria-label='Rectangle']" },
+      { "type": "drag", "from": {"x":880,"y":350}, "to":{"x":1130,"y":550} },
+      { "type": "click", "selector": "button[aria-label='Arrow']" },
+      { "type": "drag", "from": {"x":700,"y":450}, "to":{"x":870,"y":450} },
+      { "type": "press", "selector": "body", "key":"Escape" }
+    ] }
+  ]
+}

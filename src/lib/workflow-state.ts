@@ -1,7 +1,8 @@
 import { db, id, now, projectRow } from "./platform-db";
 
-export type WorkflowAnswer = { question: string; answer: string };
-export type WorkflowQuestion = { text: string; options: string[] };
+export type QuestionPurpose = "audience" | "tone" | "format" | "subject" | "dimensions" | "other";
+export type WorkflowAnswer = { question: string; answer: string; purpose?: QuestionPurpose };
+export type WorkflowQuestion = { text: string; options: string[]; purpose?: QuestionPurpose; generatedBy?: "llm" };
 export type WorkflowPhase = "routing" | "awaiting-input" | "working" | "review" | "complete" | "coming-soon";
 export type WorkflowState = {
   projectId: string;
@@ -57,6 +58,6 @@ export function recordWorkflowQa(projectId: string, gate: string, passed: boolea
 export function workflowContext(projectId: string) {
   const state = workflowState(projectId);
   const events = workflowEvents(projectId);
-  const decisions = events.filter((event) => ["route", "question", "answer", "source", "quality", "revision", "qa-failed", "qa-passed"].includes(event.kind));
+  const decisions = events.filter((event) => ["route", "question", "answer", "source", "quality", "revision", "qa-failed", "qa-passed", "auto-retry"].includes(event.kind));
   return { answers: state?.answers ?? [], specialist: state?.specialist ?? null, route: state?.route ?? null, decisions: decisions.slice(-30).map(({ kind, stage, body, data }) => ({ kind, stage, body, data })) };
 }

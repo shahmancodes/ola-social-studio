@@ -1,3 +1,4 @@
+import { fallbackAllowed } from "./ai-execution";
 import { z } from "zod";
 import { askWorkflowModel, workflowModelConfigured } from "./workflow-model";
 
@@ -20,10 +21,11 @@ export function fallbackInternetResearchPlan(type: string, brief: string): Inter
   };
 }
 
-export async function planInternetResearch(input: { type: string; brief: string; brand: unknown; answers?: unknown; scope?: "facts" | "design" | "carousel" }): Promise<InternetResearchPlan> {
+export async function planInternetResearch(input: { type: string; brief: string; brand: unknown; answers?: unknown; scope?: "facts" | "design" | "carousel"; directedAssets?:boolean }): Promise<InternetResearchPlan> {
   const fallback = fallbackInternetResearchPlan(input.type, input.brief);
   if (!workflowModelConfigured()) return fallback;
   const scope = input.scope === "design" ? "Decide whether physical dimensions or factual format requirements need live verification. A separate coordinator decision handles visual inspiration." : input.scope === "carousel" ? "Decide whether public facts or rights-cleared internet assets would materially improve this carousel. A separate coordinator decision handles visual inspiration." : "Decide whether the copy needs verifiable public facts, product details, current information, or cited evidence. A separate coordinator decision handles visual inspiration.";
   const prompt = `You are Ola's master coordinator. Decide whether a specialist needs an internet research agent BEFORE creating this ${input.type}. Return ONLY JSON {"needed":boolean,"focus":"specific facts or references to verify, or empty string","reason":"short reason"}. ${scope} A named product's features require checking official first-party sources even when the brief does not say "current". Do not search for purely subjective copy, fictional concepts, or facts already supplied in reliable source material. If public research could answer a question, send the researcher instead of asking the user for a source. Never invent facts or URLs. Brief: ${JSON.stringify(input.brief)}. Brand: ${JSON.stringify(input.brand).slice(0, 4500)}. Prior answers: ${JSON.stringify(input.answers ?? []).slice(0, 2500)}.`;
-  return askWorkflowModel(InternetResearchPlanSchema, prompt).catch(() => fallback);
+  const assetScope=input.directedAssets?' A dedicated asset downloader will separately discover images and verify their source, reuse rights and attribution after art direction. Do NOT request copy/fact research solely for image sourcing, image licensing or credits. Observation prompts and visual metaphors without factual claims do not require fact research. This does not waive verification of actual factual claims, product features or current information.':'';
+  return askWorkflowModel(InternetResearchPlanSchema, prompt+assetScope).catch(error => { if (!fallbackAllowed()) throw error; return fallback; });
 }

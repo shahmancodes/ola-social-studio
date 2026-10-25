@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { ArrowRight, Building2, ChevronDown, FolderOpen, Menu, Plus, ShieldCheck } from "lucide-react";
+import { ArrowRight, Building2, ChevronDown, FolderOpen, Film, Menu, Plus, ShieldCheck } from "lucide-react";
 import { OlaLogo } from "./ola-logo";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -29,12 +29,14 @@ export function WorkspaceShell({ children, companies, companyId, email, displayN
   const selected = companies.find((company) => company.id === companyId) ?? companies[0];
   const editorMode = pathname.startsWith("/content/") || pathname.startsWith("/intake/") || /^\/projects\/[^/]+\/result$/.test(pathname);
   const items = [
+    { label: "Product videos", href: selected ? `/videos?company=${selected.id}` : "/videos", Icon: Film, active: pathname.startsWith("/videos") },
     { label: "Projects", href: selected ? `/projects?company=${selected.id}` : "/projects", Icon: FolderOpen, active: pathname.startsWith("/projects") || pathname.startsWith("/content") },
     { label: "Brand", href: selected ? `/companies/${selected.id}/settings` : "/workspace", Icon: ShieldCheck, active: /\/(theme|settings|assets)/.test(pathname) },
   ];
 
   function changeCompany(nextId: string) {
-    if (pathname === "/projects") router.push(`/projects?company=${nextId}`);
+    if (pathname === "/videos") router.push(`/videos?company=${nextId}`);
+    else if (pathname === "/projects") router.push(`/projects?company=${nextId}`);
     else if (pathname === "/profile") router.push(`/profile?company=${nextId}${new URLSearchParams(window.location.search).get("tab") === "team" ? "&tab=team" : ""}`);
     else if (pathname.includes("/assets")) router.push(`/companies/${nextId}/settings?tab=assets`);
     else if (pathname.includes("/whatsapp")) router.push(`/companies/${nextId}/whatsapp`);

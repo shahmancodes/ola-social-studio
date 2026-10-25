@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import type { Brand } from "@/lib/platform";
+import { BrandLibraryFields } from "./brand-library-fields";
 import { CompanyAssetList } from "./company-asset-list";
 import { BrandGuide, exportBrandGuide } from "./brand-guide";
 import { FilePicker } from "./file-picker";
@@ -179,6 +180,7 @@ export function CompanySettings({ companyId, companyName, initial, canAdmin, tab
 
     {tab === "details" && <>
       <form className={styles.detailsForm} onSubmit={(event) => void saveDetails(event)}>
+        <BrandLibraryFields brand={brand} onChange={setBrand} disabled={!canAdmin} />
         <div className={styles.sectionTitle}><h2>Brand details</h2><p>Keep your company information and visual identity current.</p></div>
         <section className={styles.detailsSection} aria-labelledby="company-info-title"><div className={styles.detailsSectionHeading}><h3 id="company-info-title">Company</h3><p>Give your team a clear description of what you do.</p></div><div className={styles.detailsFields}>
           <label className={`${styles.field} ${styles.fullWidth}`}>What the company does<Textarea rows={4} placeholder="Describe your products, services, and purpose" value={brand.description} disabled={!canAdmin} onChange={(event) => setBrand({ ...brand, description: event.target.value })} /></label>

@@ -55,4 +55,20 @@ describe("Ola edit operations", () => {
     expect(() => applyOlaOperations("storyboard", storyboard, [{ op: "set", path: ["slides", 2, "background"], value: "#FFFFFF" }])).toThrow(/outside/);
     expect(() => applyOlaOperations("storyboard", storyboard, [{ op: "set", path: ["slides", 2, "template"], value: "standard" }])).toThrow(/outside/);
   });
+  it("creates missing appearance branches for modern font and style edits", () => {
+    const result = applyOlaOperations("simple", post, [
+      { op: "set", path: ["editorAppearance", "text", "title", "bold"], value: true },
+      { op: "set", path: ["visualOverrides", "title", "fontSize"], value: 60 },
+    ]);
+    expect(result).toMatchObject({ editorAppearance: { text: { title: { bold: true } } }, visualOverrides: { title: { fontSize: 60 } } });
+  });
+
+  it("removes optional fields while rejecting removal of required content and unsafe paths", () => {
+    const styled = { ...post, eyebrow: "Optional" };
+    expect(applyOlaOperations("simple", styled, [{ op: "remove", path: ["eyebrow"] }])).not.toHaveProperty("eyebrow");
+    expect(() => applyOlaOperations("simple", post, [{ op: "remove", path: ["headline"] }])).toThrow();
+    expect(() => applyOlaOperations("simple", post, [{ op: "set", path: ["editorAppearance", "__proto__", "polluted"], value: true }])).toThrow(/outside/);
+    expect({}).not.toHaveProperty("polluted");
+  });
+
 });

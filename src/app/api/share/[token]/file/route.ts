@@ -26,9 +26,9 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
       const zip = new JSZip(); for (const file of artifact.imagePaths) zip.file(path.basename(file), await fs.readFile(file)); zip.file("caption.txt", artifact.caption);
       return new Response(new Uint8Array(await zip.generateAsync({ type: "uint8array" })), { headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="${row.id}.zip"` } });
     }
-    const file = artifact.type === "post" || artifact.type === "story" ? artifact.imagePath : artifact.pptxPath;
+    const file = artifact.type === "post" || artifact.type === "story" || artifact.type === "poster" ? artifact.imagePath : artifact.pptxPath;
     if (!file) throw new Error("No export.");
-    const type = artifact.type === "post" || artifact.type === "story" ? "image/png" : "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-    return new Response(new Uint8Array(await fs.readFile(file)), { headers: { "content-type": type, ...(download ? { "content-disposition": `attachment; filename="${artifact.type === "post" ? "post.png" : artifact.type === "story" ? "instagram-story.png" : "presentation.pptx"}"` } : {}) } });
+    const type = artifact.type === "post" || artifact.type === "story" || artifact.type === "poster" ? "image/png" : "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    return new Response(new Uint8Array(await fs.readFile(file)), { headers: { "content-type": type, ...(download ? { "content-disposition": `attachment; filename="${artifact.type === "post" ? "post.png" : artifact.type === "story" ? "instagram-story.png" : artifact.type === "poster" ? "poster-a4.png" : "presentation.pptx"}"` } : {}) } });
   } catch { return NextResponse.json({ error: "Link expired or file unavailable." }, { status: 404 }); }
 }

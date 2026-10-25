@@ -17,3 +17,9 @@ describe("master research decision", () => {
     expect(model.ask.mock.calls[0][1]).toContain("public research could answer a question");
   });
 });
+it('delegates image discovery and licensing to the directed downloader without waiving factual verification',async()=>{
+ model.ask.mockClear();model.ask.mockResolvedValueOnce({needed:false,focus:'',reason:'The supplied observation copy has no factual claims.'});
+ await planInternetResearch({type:'story',scope:'facts',brief:'Use a reusable leaf image for an observation prompt.',brand:{},directedAssets:true});
+ expect(model.ask.mock.calls[0][1]).toContain('Do NOT request copy/fact research solely for image sourcing');
+ expect(model.ask.mock.calls[0][1]).toContain('does not waive verification of actual factual claims');
+});

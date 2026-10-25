@@ -18,9 +18,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const image = sharp(bytes, { limitInputPixels: 20_000_000 });
     const metadata = await image.metadata();
     if (!metadata.width || !metadata.height || metadata.width > 6000 || metadata.height > 6000) throw new Error("Image dimensions must be at most 6,000 × 6,000.");
-    const png = await image.png().toBuffer();
+    const { data: png, info } = await image.rotate().png().toBuffer({ resolveWithObject: true });
     const referenceId = await storeProjectReference(id, file.name.replace(/[^a-zA-Z0-9._-]/g, "-") + ".png", png, "image/png");
-    return NextResponse.json({ referenceId, width: metadata.width, height: metadata.height });
+    return NextResponse.json({ referenceId, width: info.width, height: info.height });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Could not upload image." }, { status: 400 }); }
 }
 

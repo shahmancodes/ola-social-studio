@@ -44,7 +44,7 @@ function ComponentPreview({ component, accent, companyId }: { component: NonNull
     : assetPath ? `/api/assets/${assetPath.split("/").map(encodeURIComponent).join("/")}` : "";
   return <div style={{ width: "100%", aspectRatio: "1080 / 760", containerType: "inline-size", position: "relative", overflow: "hidden", background: "white", "--rd-accent": accent } as React.CSSProperties}>
     <style>{SEMANTIC_COMPONENT_CSS}</style>
-    <div dangerouslySetInnerHTML={{ __html: semanticComponentHtml(component, "", illustration) }} />
+    <div style={{ height: "100%" }} dangerouslySetInnerHTML={{ __html: semanticComponentHtml(component, "", illustration) }} />
   </div>;
 }
 
@@ -67,6 +67,7 @@ export function SimpleArtifactPreview({ artifact, projectId, companyId, version,
     </div>
     <p>{dirty ? "Save to update the download." : <a href={`/api/content/${projectId}/download`}>Download PNG</a>} · Caption is editable in the controls.</p>
   </>;
+  if (artifact.type === "poster") return <><DraftImage artifact={artifact} projectId={projectId} version={version} dirty={dirty} style={{width:"100%"}} alt="A4 portrait poster preview"/><p>{dirty ? "Save to update the download." : <a href={`/api/content/${projectId}/download`}>Download 1240 × 1754 poster PNG</a>}</p></>;
   if (artifact.type === "story") return <>
     <div className={`${styles.imageTargets} ${styles.storyTargets}`} data-comment-mode={olaMode || undefined}>
       <DraftImage artifact={artifact} projectId={projectId} version={version} dirty={dirty} style={{ width: "100%", borderRadius: 18 }} alt="Instagram Story preview" />

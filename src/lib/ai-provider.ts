@@ -1,5 +1,6 @@
-export const vercelConfigured = () => Boolean(process.env.AI_GATEWAY_API_KEY);
-export const openRouterConfigured = () => Boolean(process.env.OPENROUTER_API_KEY);
+import { providerEnabled, fallbackAllowed } from "./ai-execution";
+export const vercelConfigured = () => providerEnabled("vercel");
+export const openRouterConfigured = () => providerEnabled("openrouter");
 
 export type AiProviderName = "vercel" | "openrouter";
 
@@ -33,7 +34,7 @@ export async function withProviderFallback<T>(
       return { ...result, provider: "vercel", model: models.vercel };
     } catch (vercelError) {
       signal?.throwIfAborted();
-      if (!openRouterConfigured()) throw vercelError;
+      if (!openRouterConfigured() || !fallbackAllowed()) throw vercelError;
       try {
         const result = await openRouterTask();
         return {

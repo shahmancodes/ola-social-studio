@@ -9,6 +9,8 @@ describe("company asset shortlist", () => {
     const choices = shortlistBrandAssets([
       asset("sale", "black-friday-banner.svg"),
       asset("logo", "company-logo.svg", "logo"),
+      asset("reference", "student-practising-reference.svg", "reference"),
+      asset("other-project", "student-practising-download.png", "project-artwork"),
       asset("practice", "student-practising-questions.svg"),
     ], brand, "Help students practise one question before an exam");
     expect(choices.map((item) => item.id)).toEqual(["practice", "sale"]);

@@ -65,6 +65,11 @@ describe("versioned content exports", () => {
     expect((await reviewModernArtifact(artifact, brand, 1, score)).pass).toBe(true);
     const issue = async () => JSON.stringify({ scores: { clarity: 5, usefulness: 5, visualCraft: 5, brandFit: 5, editability: 5 }, issues: ["Headline needs a clearer payoff."], summary: "Revise." });
     expect((await reviewModernArtifact(artifact, brand, 2, issue)).pass).toBe(false);
+    const global=await reviewModernArtifact(artifact,brand,3,async prompt=>{
+      expect(prompt).toContain('Logo placement rules apply per page');
+      return JSON.stringify({scores:{clarity:4,usefulness:4,visualCraft:4,brandFit:4,editability:4},issues:[],summary:'Revise the page.',findings:[{page:1,targets:[],problem:'The whole composition is too sparse.',successCriterion:'Use the available content area more purposefully.'}]});
+    });
+    expect(global.pass).toBe(false);expect(global.scores.clarity).toBe(4);expect(global.findings?.[0].targets).toEqual(['content']);expect(global.issues.join(' ')).not.toContain('Visual review unavailable');
   });
 
   it("sends every carousel slide, including the ninth, to visual QA", async () => {

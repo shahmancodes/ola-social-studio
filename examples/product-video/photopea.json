@@ -1,0 +1,8 @@
+{
+  "url": "https://www.photopea.com", "feature": "Your next edit starts here.", "brand": "Photopea", "accent": "#168b75", "theme":"dark",
+  "steps": [
+    { "label": "Meet your browser-based editor" },
+    { "label": "Open your creative workspace", "actions": [{ "type":"click", "selector":"button:has-text('Start using Photopea') >> nth=0" }] },
+    { "label": "Set up your next project", "actions": [{ "type":"click", "selector":"text=New Project" }] }
+  ]
+}

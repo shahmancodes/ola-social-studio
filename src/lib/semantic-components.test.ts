@@ -28,7 +28,7 @@ describe("semantic carousel components", () => {
     expect(SEMANTIC_COMPONENT_CSS).toContain(".rd-semantic");
   });
 
-  it("renders all nineteen component presets with editable data and styling", () => {
+  it("renders all registered component presets with editable data and styling", () => {
     for (const choice of SEMANTIC_COMPONENT_CHOICES) {
       const component = createSemanticComponent(choice.kind);
       const html = semanticComponentHtml(component);
@@ -75,7 +75,7 @@ describe("semantic carousel components", () => {
       expect(html).toContain('class="rd-loop-label">Attempt</span>');
       expect(html).toContain("REPEAT");
       expect(html).toContain('class="rd-loop-track"');
-      expect(html.match(/class="rd-loop-curve"/g)).toHaveLength(count === 3 ? 3 : 2);
+      expect(html.match(/class="rd-loop-curve"/g)).toHaveLength(count);
       expect(html).toContain(`marker-end="url(#rd-loop-head-${count})"`);
     }
     expect(SEMANTIC_COMPONENT_CSS).toContain(".rd-loop-count-2 .rd-loop-node-2");

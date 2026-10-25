@@ -1,5 +1,6 @@
 import { db, projectRow } from "./platform-db";
 import { workflowEvents, workflowState, type WorkflowEvent, type WorkflowQuestion } from "./workflow-state";
+import { ensurePendingClarification } from "./pending-clarification";
 
 export type RequestOutput = {
   title: string;
@@ -13,6 +14,9 @@ export type RequestOutput = {
 
 export type RequestSnapshot = {
   id: string;
+  companyId?: string;
+  createdAt?: string;
+  updatedAt?: string;
   brief: string;
   type: string;
   status: string;
@@ -55,6 +59,7 @@ function genericOutput(id: string, status: string, artifact: ArtifactPreview): R
 }
 
 export async function requestSnapshot(projectId: string): Promise<RequestSnapshot> {
+  await ensurePendingClarification(projectId);
   const row = projectRow(projectId);
   if (!row) throw new Error("Request not found.");
   const state = workflowState(projectId);
@@ -64,5 +69,6 @@ export async function requestSnapshot(projectId: string): Promise<RequestSnapsho
   const designQuestion = row.content_type === "design" && artifact?.phase === "intake" ? artifact.question : null;
   const failure = row.status === "failed" ? (db().prepare("SELECT error FROM jobs WHERE project_id=? AND status='failed' ORDER BY updated_at DESC LIMIT 1").get(projectId) as { error: string | null } | undefined)?.error?.slice(0, 450) ?? null : null;
   const queuedAt = row.status === "queued" ? (db().prepare("SELECT created_at FROM jobs WHERE project_id=? AND status='queued' ORDER BY created_at DESC LIMIT 1").get(projectId) as { created_at: string } | undefined)?.created_at ?? null : null;
-  return { id: row.id, brief: row.brief, type: row.content_type, status: row.status, queuedAt, specialist: state?.specialist ?? null, question: state?.question ?? designQuestion ?? null, events, output, failure };
+  const brief = events.find(event => event.actor === "user" && event.kind === "prompt")?.body ?? row.brief;
+  return { id: row.id, companyId: row.company_id, createdAt: row.created_at, updatedAt: row.updated_at, brief, type: row.content_type, status: row.status, queuedAt, specialist: state?.specialist ?? null, question: designQuestion ?? state?.question ?? null, events, output, failure };
 }

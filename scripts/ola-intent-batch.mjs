@@ -1,0 +1,18 @@
+import fs from'node:fs';import path from'node:path';import crypto from'node:crypto';import {DatabaseSync}from'node:sqlite';import{createRequire}from'node:module';
+const root=process.cwd();createRequire(import.meta.url)('@next/env').loadEnvConfig(root);const lab=path.join(root,'.data/comparison');Object.assign(process.env,{OLA_ROOT_DIR:root,COMPARISON_DATA_DIR:lab,OLA_DATA_DIR:path.join(lab,'ola'),OLA_DISABLE_MESSAGING:'1'});
+const{getCase,getAttempt,insertCase,labDb,digest,fingerprint}=await import('../src/comparison/store.ts');const{InputSchema}=await import('../src/comparison/types.ts');
+const dir=path.join(lab,'intent-study'),file=path.join(dir,'manifest.json');if(fs.existsSync(file))throw Error('This experiment already exists; preserve its attempts.');
+if(labDb().prepare("SELECT 1 FROM attempts WHERE status IN ('queued','running','awaiting-input')").get())throw Error('Existing active work must finish first.');
+const code=fingerprint(),worker=labDb().prepare('SELECT fingerprint FROM worker_info WHERE id=1').get();if(worker?.fingerprint!==code)throw Error('Restart the idle worker before queueing this source version.');
+const study=JSON.parse(fs.readFileSync(path.join(lab,'ola-study/manifest.json'),'utf8')),source=new DatabaseSync(path.join(root,'.data/platform.sqlite'),{readOnly:true});
+const batch={createdAt:new Date().toISOString(),fingerprint:code,model:study.model,change:'Unboxed renderer defaults + rendered geometry QA + persistent company memory',oldAttempts:labDb().prepare('SELECT id,record_json FROM attempts').all().map(r=>({id:r.id,hash:digest(r.record_json)})),cases:[]};fs.mkdirSync(dir,{recursive:true});
+const specs=[['Vercel',1,'poster'],['Vercel',1,'story'],['GitLab',2,'poster'],['NASA',1,'story'],['GitHub',1,'carousel'],['Mozilla',1,'carousel']];
+for(const[company,prompt,format]of specs){
+ const item=study.cases.find(c=>c.company===company&&c.prompt===prompt&&c.format===format),before=getCase(item.id),baseline=before.attempts.filter(a=>a.engine==='ola'&&a.result?.pages.length).at(-1);if(!baseline)throw Error('No rendered baseline.');
+ const row=source.prepare('SELECT id,brand_json FROM companies WHERE name=?').get(company);if(!row)throw Error('Missing company profile.');const brand=JSON.parse(row.brand_json);if(!brand.library?.sources.some(s=>s.status==='captured'))throw Error('Company library not populated.');
+ const caseId=crypto.randomUUID(),assetDir=path.join(lab,'cases',caseId,'inputs');fs.mkdirSync(assetDir,{recursive:true});
+ const assets=source.prepare('SELECT * FROM assets WHERE company_id=?').all(row.id).map(a=>{const bytes=fs.readFileSync(a.disk_path),target=path.join(assetDir,a.id+path.extname(a.disk_path));fs.writeFileSync(target,bytes,{flag:'wx'});return{id:a.id,name:a.name,mediaType:a.media_type,category:a.category,role:a.usage_role,path:target,sha256:digest(bytes),sourceUrl:a.source_url??undefined,rightsNote:a.rights_note??undefined};});
+ const parsed=InputSchema.parse({mode:'ola',companyId:row.id,companyName:company,brand,brief:before.input.brief,format,slideCount:6,model:study.model,fixture:false});const{assetIds:_,...rest}=parsed;const comparison=insertCase(caseId,{...rest,assets});
+ batch.cases.push({company,format,prompt,caseId,sourceCase:item.id,baseline:baseline.id,inputHash:comparison.inputHash,attemptId:comparison.attempts[0].id,brandRevision:brand.library.revision,assetHashes:assets.map(a=>({id:a.id,sha256:a.sha256,category:a.category}))});fs.writeFileSync(file,JSON.stringify(batch,null,2));console.log(JSON.stringify(batch.cases.at(-1)));
+}
+for(const old of batch.oldAttempts)if(digest(JSON.stringify(getAttempt(old.id)))!==old.hash)throw Error('A previous attempt changed.');source.close();

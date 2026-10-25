@@ -6,10 +6,16 @@ import { DATA_DIR } from "./paths";
 import { db, id, now, projectRow, type CompanyRow, type ProjectRow } from "./platform-db";
 import { type Role } from "./platform-auth";
 
-export const ContentTypeSchema = z.enum(["carousel", "post", "story", "article", "presentation", "design"]);
+import { BrandLibrarySchema } from "./brand-library";
+import { BrandDesignSchema } from "./brand-design";
+
+export const ContentTypeSchema = z.enum(["carousel", "post", "poster", "story", "article", "presentation", "design"]);
 export type ContentType = z.infer<typeof ContentTypeSchema>;
 
 export const BrandSchema = z.object({
+  library: BrandLibrarySchema.optional(),
+  designSystem: BrandDesignSchema.optional(),
+  sourceAssetAliases: z.record(z.string(),z.string()).optional(),
   description: z.string().default(""),
   audience: z.string().default(""),
   voice: z.string().default(""),

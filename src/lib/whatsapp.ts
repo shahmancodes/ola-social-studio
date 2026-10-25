@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
 import { db, hashToken, id, later, now, projectRow } from "./platform-db";
 import { companiesForUser, createProjectRecord, newShareToken, storeProjectReference, type ContentType } from "./platform";
-import { isActiveFormat } from "./format-availability";
+import { isActiveFormat, inferRequestedFormat } from "./format-availability";
 import { enqueue } from "./platform-db";
 import { answerDesignQuestion, DesignIntakeSchema } from "./freeform-design";
 import { initializeSpecialistWorkflow, workflowState } from "./workflow-state";
 import { answerSpecialistQuestion } from "./content-specialists";
+import { answerOlaWhatsAppEdit } from "./ola-whatsapp";
 
 export function verifyMetaSignature(raw: string, signature: string | null) {
   const secret = process.env.WHATSAPP_APP_SECRET;
@@ -28,11 +29,13 @@ export async function downloadWhatsAppMedia(mediaId: string) {
 }
 
 export function queueWhatsApp(phone: string, body: string, kind: "text" | "completion" = "text") {
+  if (process.env.OLA_DISABLE_MESSAGING === "1") return;
   db().prepare("INSERT INTO messages(id,phone,direction,body,status,created_at) VALUES(?,?,?,?,?,?)")
     .run(id(), phone, "out", JSON.stringify({ text: body, kind }), "queued", now());
 }
 
 export async function flushWhatsAppMessages() {
+  if (process.env.OLA_DISABLE_MESSAGING === "1") return;
   const rows = db().prepare("SELECT id,phone,body,attempts FROM messages WHERE direction='out' AND status IN ('queued','retry') AND (retry_after IS NULL OR retry_after<=?) ORDER BY created_at LIMIT 10").all(now()) as Array<{ id: string; phone: string; body: string; attempts: number }>;
   for (const row of rows) {
     const payload = JSON.parse(row.body) as { text: string; kind: string };
@@ -75,11 +78,13 @@ function saveState(phone: string, state: Conversation) {
 }
 
 function inferType(text: string): ContentType | undefined {
+  const active = inferRequestedFormat(text);
+  if (active && isActiveFormat(active)) return active;
   if (/\b(carousel|carousell|slides for instagram)\b/i.test(text)) return "carousel";
   if (/\b(presentation|deck|powerpoint|pptx)\b/i.test(text)) return "presentation";
   if (/\b(article|blog|long.form)\b/i.test(text)) return "article";
   if (/\b(instagram story|ig story|insta story|story)\b/i.test(text)) return "story";
-  if (/\b(design|cheque|check for (?:a |the )?competition|poster|flyer|certificate|banner|invitation|ticket)\b/i.test(text)) return "design";
+  if (/\b(design|cheque|check for (?:a |the )?competition|flyer|certificate|banner|invitation|ticket)\b/i.test(text)) return "design";
   if (/\b(post|graphic|image)\b/i.test(text)) return "post";
 }
 
@@ -101,13 +106,23 @@ export async function processWhatsAppMessage(input: { phone: string; externalId:
       database.prepare("INSERT INTO whatsapp_links(phone,user_id,linked_at) VALUES(?,?,?) ON CONFLICT(phone) DO UPDATE SET user_id=excluded.user_id,linked_at=excluded.linked_at").run(input.phone, row.user_id, now());
       database.prepare("UPDATE pairing_codes SET used_at=? WHERE code_hash=?").run(now(), hashToken(pairing[1]));
       database.prepare("DELETE FROM pairing_attempts WHERE phone=?").run(input.phone);
-      queueWhatsApp(input.phone, "Linked. Tell me what Instagram Story or carousel you’d like to create."); return;
+      queueWhatsApp(input.phone, "Linked. Tell me what Instagram Story, carousel or poster you’d like to create."); return;
     }
   }
   const linked = database.prepare("SELECT user_id FROM whatsapp_links WHERE phone=?").get(input.phone) as { user_id: string } | undefined;
   if (!linked) { queueWhatsApp(input.phone, "This number isn’t linked. Sign in to the workspace, open Connect WhatsApp, and send your pairing code here."); return; }
   const companies = companiesForUser(linked.user_id);
   let state = getState(input.phone);
+  if (state.projectId && !companies.some(company => company.id === projectRow(state.projectId!)?.company_id)) {
+    saveState(input.phone, {});
+    queueWhatsApp(input.phone, "You no longer have access to that project. Send a new brief to start with a company you can access.");
+    return;
+  }
+  if (/^(?:new|start over)$/i.test(text)) {
+    saveState(input.phone, {});
+    queueWhatsApp(input.phone, "What would you like to create next?");
+    return;
+  }
   if (/^cancel\b/i.test(text)) {
     if (state.projectId) {
       const row = projectRow(state.projectId);
@@ -141,10 +156,27 @@ export async function processWhatsAppMessage(input: { phone: string; externalId:
     return;
   }
   if (state.projectId && /^(?:new|start over)\b/i.test(text)) state = {};
+  const editable = state.projectId ? projectRow(state.projectId) : undefined;
+  if (editable && ["complete", "needs-review", "failed"].includes(editable.status) && editable.artifact_json) {
+    if (input.media) {
+      try {
+        const media = await downloadWhatsAppMedia(input.media.id);
+        await storeProjectReference(editable.id, input.media.name, media.bytes, media.mime);
+        if (!text) { queueWhatsApp(input.phone, "Saved the reference to this project. Describe the change you’d like to make."); return; }
+      } catch { queueWhatsApp(input.phone, "I couldn’t save that reference. Send it again to retry."); return; }
+    }
+    if (database.prepare("SELECT id FROM jobs WHERE project_id=? AND kind='ola-whatsapp' AND status IN ('queued','running')").get(editable.id)) {
+      queueWhatsApp(input.phone, "Ola is working on your previous message. Wait for that reply, then send this instruction again.");
+      return;
+    }
+    enqueue(editable.id, "ola-whatsapp", { phone: input.phone, userId: linked.user_id, text, externalId: input.externalId });
+    queueWhatsApp(input.phone, "I’m working on your edit. I’ll send the proposed changes here.");
+    return;
+  }
   if (state.projectId) { queueWhatsApp(input.phone, "That request is already running. Reply “status” or “cancel”; send “new” to start another. To correct it, cancel and send the revised brief."); return; }
   if (input.media) {
     state.pendingMedia = [...(state.pendingMedia ?? []), input.media]; saveState(input.phone, state);
-    queueWhatsApp(input.phone, "Got the reference. What should I create with it?"); return;
+    if (!text) { queueWhatsApp(input.phone, "Got the reference. What should I create with it?"); return; }
   }
   if (!state.companyId && companies.length === 1) state.companyId = companies[0].id;
   if (!state.companyId && companies.length > 1) {
@@ -162,8 +194,8 @@ export async function processWhatsAppMessage(input: { phone: string; externalId:
     state.brief = correction ? correction[1] : state.brief ? `${state.brief}\n${text}` : text;
   }
   if (!state.companyId) { saveState(input.phone, state); queueWhatsApp(input.phone, `Which company is this for? ${companies.map((company) => company.name).join(" / ")}`); return; }
-  if (state.type && !isActiveFormat(state.type)) { saveState(input.phone, state); queueWhatsApp(input.phone, `${state.type} is Coming Soon. I can make an Instagram Story or carousel from your brief. Reply “Story” or “carousel” to continue.`); return; }
-  if (!state.type) { saveState(input.phone, state); queueWhatsApp(input.phone, "Should I make an Instagram Story or carousel?"); return; }
+  if (state.type && !isActiveFormat(state.type)) { saveState(input.phone, state); queueWhatsApp(input.phone, `${state.type} is Coming Soon. I can make an Instagram Story, carousel or poster from your brief. Reply “Story”, “carousel” or “poster” to continue.`); return; }
+  if (!state.type) { saveState(input.phone, state); queueWhatsApp(input.phone, "Should I make an Instagram Story, carousel or poster?"); return; }
   if (state.slideCount && state.type === "carousel" && (state.slideCount < 3 || state.slideCount > 9)) { saveState(input.phone, state); queueWhatsApp(input.phone, "Carousels can have 3–9 slides. What count should I use, or should I choose automatically?"); return; }
   if (!state.brief || state.brief.length < 12) { saveState(input.phone, state); queueWhatsApp(input.phone, "What topic or message should it cover?"); return; }
   const projectId = createProjectRecord({ companyId: state.companyId, creatorId: linked.user_id, contentType: state.type, brief: state.brief, status: "queued", artifact: { instructions: state.instructions ?? "", slideCount: state.slideCount ?? "auto" } });
@@ -175,6 +207,17 @@ export async function processWhatsAppMessage(input: { phone: string; externalId:
   enqueue(projectId, "generate-simple");
   state.projectId = projectId; saveState(input.phone, state);
   queueWhatsApp(input.phone, `Started your ${state.type}. I’ll send a preview link when it’s genuinely finished. Reply “status” or “cancel” anytime.`);
+}
+
+// Run slow AI/edit/export work on the durable worker, so Meta receives a quick webhook acknowledgement.
+export async function processWhatsAppEditJob(projectId: string, input: { phone: string; userId: string; text: string; externalId: string }) {
+  const linked = db().prepare("SELECT user_id FROM whatsapp_links WHERE phone=?").get(input.phone) as { user_id: string } | undefined;
+  if (linked?.user_id !== input.userId || getState(input.phone).projectId !== projectId) return;
+  if (!companiesForUser(input.userId).some(company => company.id === projectRow(projectId)?.company_id)) {
+    queueWhatsApp(input.phone, "You no longer have access to this project."); return;
+  }
+  try { queueWhatsApp(input.phone, await answerOlaWhatsAppEdit(projectId, input.userId, input.text, input.externalId)); }
+  catch (error) { queueWhatsApp(input.phone, `I couldn’t complete that edit: ${error instanceof Error ? error.message : String(error)} Send your instruction again to retry, or open the workspace.`); }
 }
 
 export function notifyDesignQuestion(projectId: string, question: { text: string; options: string[] }) {
@@ -195,7 +238,7 @@ export function notifySpecialistQuestion(projectId: string) {
 export function notifyNeedsReview(projectId: string) {
   const row = db().prepare("SELECT phone FROM conversations WHERE json_extract(state_json,'$.projectId')=?").get(projectId) as { phone: string } | undefined;
   const project = projectRow(projectId);
-  if (row && project?.status === "needs-review") queueWhatsApp(row.phone, `Your ${project.content_type} draft is ready in the workspace, but QA found issues. Open the project to review and edit it.`);
+  if (row && project?.status === "needs-review") queueWhatsApp(row.phone, `Your ${project.content_type} draft is ready in the workspace, but QA found issues. Reply here with changes, or open the project to review and edit it.`);
 }
 
 export function notifyCompletedProject(projectId: string) {
@@ -205,7 +248,7 @@ export function notifyCompletedProject(projectId: string) {
   const value = newShareToken(projectId);
   const base = process.env.PUBLIC_BASE_URL;
   if (!base) { queueWhatsApp(row.phone, "Your content is ready, but the preview tunnel is offline. Ask for a fresh link after it restarts."); return; }
-  queueWhatsApp(row.phone, `Your ${project.content_type} is ready: ${base.replace(/\/$/, "")}/share/${value}\nRead-only preview and download; expires in 3 days. Sign in to edit.`, "completion");
+  queueWhatsApp(row.phone, `Your ${project.content_type} is ready: ${base.replace(/\/$/, "")}/share/${value}\nPreview and download; expires in 3 days. Reply here with changes, or sign in to edit in the workspace.`, "completion");
 }
 
 export function notifyFailedProject(projectId: string, reason: string) {

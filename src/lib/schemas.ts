@@ -295,6 +295,9 @@ export const SemanticComponentKindSchema = z.enum([
   "progress", "metricSpotlight", "pullQuote", "labeledVisual",
   "priorityStack", "continuum", "barChart", "lineChart",
   "stackedBar", "scatterPlot", "histogram",
+  "pieChart", "hierarchyPyramid", "hubSpoke", "conversionFunnel",
+  "waterfall", "quadrant", "venn", "calendarHeatmap", "swimlane",
+  "proportionalFlow", "marketSizing", "processSteps", "metricGrid", "bulletChart", "relatedPair",
 ]);
 
 const SemanticComponentStyleSchema = z.object({
@@ -305,8 +308,11 @@ const SemanticComponentStyleSchema = z.object({
   accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#7F22FE"),
   seriesTwo: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#9599A6"),
   seriesThree: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#C9CBD2"),
+  seriesFour: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#467640"),
+  seriesFive: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#9B4874"),
   onAccent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#FFFFFF"),
   fontFamily: z.enum(["manrope", "poppins", "system", "serif"]).default("manrope"),
+  headingFontFamily: z.enum(["manrope", "poppins", "system", "serif"]).nullable().default(null),
   quoteFontFamily: z.enum(["manrope", "poppins", "system", "serif"]).default("serif"),
 });
 
@@ -321,20 +327,58 @@ export const SemanticComponentSchema = z.object({
   unit: z.string().max(20).default(""),
   activeIndex: z.number().int().min(0).max(11).default(0),
   assetPath: z.string().max(300).default(""),
+  chartStyle: z.enum(["pie", "donut"]).default("pie"),
   style: SemanticComponentStyleSchema.nullable().default(null),
   items: z.array(z.object({
     label: z.string().min(1).max(72),
     detail: z.string().max(140).default(""),
     tag: z.string().max(20).default(""),
     speaker: z.enum(["student", "mascot"]).default("student"),
-    value: z.number().finite().min(-1_000_000).max(1_000_000).default(0),
+    value: z.number().finite().min(-1_000_000).max(1_000_000_000_000).default(0),
     value2: z.number().finite().min(-1_000_000).max(1_000_000).default(0),
     value3: z.number().finite().min(-1_000_000).max(1_000_000).default(0),
     x: z.number().min(0).max(100).default(50),
     y: z.number().min(0).max(100).default(50),
-  })).min(1).max(12),
+    radius: z.number().min(6).max(32).default(14),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null),
+    group: z.enum(["source", "destination"]).default("source"),
+  })).min(1).max(42),
 }).superRefine((component, context) => {
   const count = component.items.length;
+  const issue = (message: string, path: (string | number)[] = ["items"]) => context.addIssue({ code: "custom", path, message });
+  if (component.kind === "relatedPair" && count !== 2) issue("Related pairs need exactly two complementary ideas.");
+  if (["processSteps", "metricGrid", "bulletChart"].includes(component.kind) && (count < 2 || count > 4)) issue("This component needs 2–4 items.");
+  if (component.kind === "bulletChart" && component.items.some(item => item.value < 0 || item.value2 <= 0)) issue("Target charts need nonnegative actual values and positive targets.");
+  if (component.kind === "histogram" && component.items.some(item => item.value < 0)) issue("Histogram frequencies cannot be negative.");
+  if (component.kind === "stackedBar" && component.items.some(item => item.value < 0 || item.value2 < 0 || item.value3 < 0)) issue("Parts of a whole cannot be negative.");
+  if (component.kind !== "calendarHeatmap" && count > 12) issue("This component supports at most 12 items.");
+  if (component.kind !== "marketSizing" && component.items.some((item) => item.value > 1_000_000)) issue("Values must be at most 1,000,000 outside market sizing.");
+  if (["pieChart", "hierarchyPyramid"].includes(component.kind) && (count < 3 || count > 5)) issue("This component needs 3–5 items.");
+  if (component.kind === "pieChart" && (component.items.some((item) => item.value <= 0) || component.items.reduce((sum, item) => sum + item.value, 0) <= 0)) issue("Pie slices must have positive values; percentages are calculated from their total.");
+  if (component.kind === "pieChart" && component.unit === "%" && Math.abs(component.items.reduce((sum, item) => sum + item.value, 0) - 100) > 1e-8) issue("Percentage values must sum to 100. Otherwise use counts or weights without a % unit.");
+  if (component.kind === "hubSpoke" && (count < 2 || count > 4)) issue("Hub and spoke needs 2–4 peers.");
+  if (component.kind === "hubSpoke" && !component.prompt.trim()) issue("The hub needs a central idea.", ["prompt"]);
+  if (component.kind === "conversionFunnel" && (count < 3 || count > 5 || component.items.some((item, index) => item.value < 0 || (index === 0 ? item.value <= 0 : item.value > component.items[index - 1].value)))) issue("Funnels need 3–5 non-increasing, nonnegative counts and a positive opening count.");
+  if (component.kind === "waterfall" && (count < 3 || count > 7)) issue("Waterfalls need an opening, 1–5 signed changes, and a closing total.");
+  if (component.kind === "waterfall") {
+    const total = component.items.slice(0, -1).reduce((sum, item) => sum + item.value, 0);
+    if (Math.abs(total - component.items[count - 1].value) > Math.max(1, Math.abs(total)) * 1e-8) issue("Closing total must equal the opening value plus all signed changes.");
+  }
+  if (component.kind === "quadrant" && (count < 2 || count > 8)) issue("Quadrants need 2–8 points.");
+  if (component.kind === "venn" && count !== 3) issue("Set overlap needs left, right, and shared regions.");
+  if (component.kind === "calendarHeatmap") {
+    const cells = component.items.map((item) => `${item.x}:${item.y}`);
+    if (component.items.some((item) => !Number.isInteger(item.x) || item.x > 5 || !Number.isInteger(item.y) || item.y > 6 || item.value < 0)) issue("Calendar cells need week 0–5, weekday 0–6, and a nonnegative count.");
+    if (new Set(cells).size !== cells.length) issue("Calendar cells must have unique week and weekday coordinates.");
+  }
+  if (component.kind === "swimlane" && (count < 2 || count > 5 || component.items.some((item) => item.value < 0 || item.value2 <= 0))) issue("Swimlanes need 2–5 tasks, nonnegative starts, and positive durations.");
+  if (component.kind === "proportionalFlow") {
+    const sources = component.items.filter((item) => item.group === "source"), destinations = component.items.filter((item) => item.group === "destination");
+    const sum = (items: typeof sources) => items.reduce((total, item) => total + item.value, 0);
+    if (!sources.length || sources.length > 4 || !destinations.length || destinations.length > 4 || component.items.some((item) => item.value <= 0)) issue("Flows need 1–4 sources and 1–4 destinations with positive quantities.");
+    if (Math.abs(sum(sources) - sum(destinations)) > Math.max(1, sum(sources)) * 1e-8) issue("Flow source and destination totals must match.");
+  }
+  if (component.kind === "marketSizing" && (count !== 3 || component.items.some((item, index) => item.value < 0 || (index > 0 && item.value > component.items[index - 1].value)))) issue("Market sizing needs three nested, nonnegative values: total ≥ served ≥ obtainable.");
   if (component.kind !== "pullQuote" && count < 2) context.addIssue({ code: "custom", path: ["items"], message: "This component needs at least two items." });
   if (component.kind === "pullQuote" && count !== 1) context.addIssue({ code: "custom", path: ["items"], message: "Pull quotes need one attribution." });
   if (component.kind === "processLoop" && (count < 2 || count > 4)) context.addIssue({ code: "custom", path: ["items"], message: "Process loops need 2–4 steps." });

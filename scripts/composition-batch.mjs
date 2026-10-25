@@ -1,0 +1,11 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+const require=createRequire(import.meta.url),root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
+require('@next/env').loadEnvConfig(root);
+const lab=path.resolve(process.env.COMPARISON_DATA_DIR||path.join(root,'.data/comparison'));
+const env={...process.env,OLA_ROOT_DIR:root,COMPARISON_DATA_DIR:lab,OLA_DATA_DIR:path.join(lab,'ola'),OLA_DISABLE_MESSAGING:'1'};
+for(const key of Object.keys(env))if(key.startsWith('WHATSAPP_'))delete env[key];
+const child=spawn(process.execPath,['--import','tsx',process.argv[2]==='--responsive-proof'?'src/comparison/responsive-proof.ts':'src/comparison/composition-batch.ts',...process.argv.slice(2)],{cwd:root,env,stdio:'inherit'});
+child.on('exit',code=>{process.exitCode=code??1;});

@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-const DATA_DIR = path.join(process.cwd(), ".data");
+import { DATA_DIR } from "./data-directory";
 
 let database: DatabaseSync | undefined;
 
@@ -12,6 +12,16 @@ export function db() {
   database = new DatabaseSync(path.join(DATA_DIR, "platform.sqlite"));
   database.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
   database.exec(`
+    CREATE TABLE IF NOT EXISTS project_ai_policy(project_id TEXT PRIMARY KEY,policy_json TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS ai_runs(id TEXT PRIMARY KEY,project_id TEXT,company_id TEXT,job_id TEXT,attempt_id TEXT,stage TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,status TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS ai_runs_project ON ai_runs(project_id);
+    CREATE INDEX IF NOT EXISTS ai_runs_attempt ON ai_runs(attempt_id);
+    CREATE INDEX IF NOT EXISTS ai_runs_status ON ai_runs(status,job_id);
+    CREATE TABLE IF NOT EXISTS ai_calls(id TEXT PRIMARY KEY,run_id TEXT,project_id TEXT,attempt_id TEXT,provider TEXT NOT NULL,model TEXT NOT NULL,generation_id TEXT,record_json TEXT NOT NULL,reconcile_after TEXT,reconcile_tries INTEGER NOT NULL DEFAULT 0);
+    CREATE INDEX IF NOT EXISTS ai_calls_run ON ai_calls(run_id);
+    CREATE INDEX IF NOT EXISTS ai_calls_project ON ai_calls(project_id);
+    CREATE INDEX IF NOT EXISTS ai_calls_attempt ON ai_calls(attempt_id);
+    CREATE INDEX IF NOT EXISTS ai_calls_reconcile ON ai_calls(reconcile_after,reconcile_tries);
     CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, is_root INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS companies (id TEXT PRIMARY KEY, name TEXT NOT NULL, brand_json TEXT NOT NULL DEFAULT '{}', onboarding_step INTEGER NOT NULL DEFAULT 5, created_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS memberships (user_id TEXT NOT NULL REFERENCES users(id), company_id TEXT NOT NULL REFERENCES companies(id), role TEXT NOT NULL CHECK(role IN ('owner','admin','member')), PRIMARY KEY(user_id,company_id));

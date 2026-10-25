@@ -13,7 +13,7 @@ export default async function ContentPage({ params }: { params: Promise<{ id: st
     await requireProjectAccess(id);
     const row = projectRow(id);
     if (!row || (row.content_type === "carousel" && !row.artifact_json)) notFound();
-    if (!["complete", "needs-review", "failed", "stopped"].includes(row.status)) {
+    if (!["complete", "needs-review", "failed", "stopped"].includes(row.status) && !(row.status === "qa" && row.artifact_json)) {
       return <AppFrame companyId={row.company_id}><IntakeWorkspace projectId={id} initialSnapshot={await requestSnapshot(id)} /></AppFrame>;
     }
     // Database rows can have a non-plain prototype; client component props cannot.

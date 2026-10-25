@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const children = [
+  spawn(process.execPath, ["--import", "tsx", "src/video-worker-main.ts"], { stdio: "inherit" }),
   spawn(process.execPath, [require.resolve("next/dist/bin/next"), "dev"], { stdio: "inherit" }),
   spawn(process.execPath, ["--import", "tsx", "src/worker-main.ts"], { stdio: "inherit" }),
 ];

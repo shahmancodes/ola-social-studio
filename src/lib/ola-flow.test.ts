@@ -8,6 +8,9 @@ vi.mock("./platform-db", async () => {
   const { DatabaseSync } = await import("node:sqlite");
   const database = new DatabaseSync(":memory:");
   database.exec(`
+    CREATE TABLE project_ai_policy(project_id TEXT PRIMARY KEY,policy_json TEXT NOT NULL);
+    CREATE TABLE ai_runs(id TEXT PRIMARY KEY,project_id TEXT,company_id TEXT,job_id TEXT,attempt_id TEXT,stage TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,status TEXT NOT NULL);
+    CREATE TABLE ai_calls(id TEXT PRIMARY KEY,run_id TEXT,project_id TEXT,attempt_id TEXT,provider TEXT NOT NULL,model TEXT NOT NULL,generation_id TEXT,record_json TEXT NOT NULL,reconcile_after TEXT,reconcile_tries INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE projects (id TEXT PRIMARY KEY, company_id TEXT, content_type TEXT, brief TEXT, brand_snapshot_json TEXT, status TEXT, version INTEGER);
     CREATE TABLE users (id TEXT PRIMARY KEY, display_name TEXT, email TEXT);
     CREATE TABLE assets (id TEXT PRIMARY KEY, company_id TEXT, media_type TEXT, name TEXT, category TEXT);
@@ -21,7 +24,7 @@ vi.mock("./platform-db", async () => {
   return { ...actual, db: () => database, projectRow: (id: string) => database.prepare("SELECT * FROM projects WHERE id=?").get(id), id: () => crypto.randomUUID(), now: () => new Date().toISOString() };
 });
 
-import { decideOlaProposal, olaHistory, PromptRequestSchema, requestOlaEdit } from "./ola-edit";
+import { decideOlaProposal, olaHistory, PromptRequestSchema, requestOlaEdit, olaModelDocument } from "./ola-edit";
 import { SimpleArtifactSchema } from "./simple-content";
 
 const projectId = "project-1";
@@ -70,6 +73,8 @@ describe("Ola proposal lifecycle", () => {
     expect(() => decideOlaProposal(projectId, userId, { proposalId: second.pending!.id, decision: "accepted", currentDraft: { ...draft, headline: "Changed elsewhere" } })).toThrow(/draft changed/);
     const accepted = decideOlaProposal(projectId, userId, { proposalId: second.pending!.id, decision: "accepted", currentDraft: draft });
     expect(accepted.candidate).toMatchObject({ headline: "A clearer headline", subline: "Short line" });
+    // A lost PATCH response can be retried without losing the accepted candidate.
+    expect(decideOlaProposal(projectId, userId, { proposalId: second.pending!.id, decision: "accepted", currentDraft: draft }).candidate).toEqual(accepted.candidate);
     expect(olaHistory(projectId, userId).messages).toHaveLength(4);
     expect(olaHistory(projectId, userId).pending).toBeNull();
   });
@@ -87,4 +92,72 @@ describe("Ola proposal lifecycle", () => {
     await expect(requestOlaEdit(projectId, userId, prompt(), async () => ({ reply: "Use this image", operations: [{ op: "set", path: ["assetId"], value: "other-company-asset" }] }))).rejects.toThrow(/outside this company/);
     expect(olaHistory(projectId, userId).messages).toHaveLength(0);
   });
+  it("repairs an invalid edit once using schema constraints and preserves the draft", async () => {
+    let calls = 0;
+    const result = await requestOlaEdit(projectId, userId, prompt(), async modelPrompt => {
+      expect(modelPrompt).toContain('DOCUMENT SCHEMA');
+      expect(modelPrompt).toContain('"maxLength":90');
+      calls++;
+      if (calls === 1) return { reply: "Changed", operations: [{ op: "set", path: ["headline"], value: "x".repeat(120) }] };
+      expect(modelPrompt).toContain('VALIDATION ERROR');
+      return { reply: "Changed", operations: [{ op: "set", path: ["headline"], value: "Repaired headline" }] };
+    });
+    expect(calls).toBe(2);
+    expect(result.pending?.candidate).toMatchObject({ headline: "Repaired headline" });
+    expect(result.messages).toHaveLength(2);
+  });
+
+  it("does not send generated render evidence to the model or reject a large output", async () => {
+    const large = { ...draft, renderEvidence: [{ page: 1, fonts: [], checks: [], layout: "x".repeat(200_000) }] };
+    expect(JSON.stringify(olaModelDocument(large)).length).toBeLessThan(2000);
+    const result = await requestOlaEdit(projectId, userId, prompt({ draft: large }), async modelPrompt => {
+      expect(modelPrompt).not.toContain('x'.repeat(100));
+      return { reply: "Updated", operations: [{ op: "set", path: ["headline"], value: "Edited large output" }] };
+    });
+    expect(result.pending?.candidate).toMatchObject({ renderEvidence: large.renderEvidence });
+  });
+
+  it("retains the raw origin for the UI and accepts different JSON key orders", async () => {
+    const raw = { caption: "Caption", type: "post", headline: "Before", subline: "Original line", designVersion: 2 };
+    const result = await requestOlaEdit(projectId, userId, prompt({ draft: raw }), async () => ({ reply: "Updated", operations: [{ op: "set", path: ["headline"], value: "After" }] }));
+    expect(result.pending?.origin).toEqual(raw);
+    const reordered = { ...draft, subline: raw.subline };
+    expect(decideOlaProposal(projectId, userId, { proposalId: result.pending!.id, decision: "accepted", currentDraft: reordered }).candidate).toMatchObject({ headline: "After" });
+  });
+
+  it("deduplicates in-flight delivery and rejects competing requests", async () => {
+    let release!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const respond = vi.fn(async () => { await waiting; return { reply: "Updated", operations: [{ op: "set" as const, path: ["headline"], value: "Once" }] }; });
+    const input = prompt();
+    const first = requestOlaEdit(projectId, userId, input, respond);
+    const duplicate = requestOlaEdit(projectId, userId, input, respond);
+    await expect(requestOlaEdit(projectId, userId, prompt(), respond)).rejects.toThrow(/already working/);
+    release();
+    const [a, b] = await Promise.all([first, duplicate]);
+    expect(a.pending?.id).toBe(b.pending?.id);
+    expect(respond).toHaveBeenCalledTimes(1);
+    const replay = await requestOlaEdit(projectId, userId, input, respond);
+    expect(replay.pending?.id).toBe(a.pending?.id);
+    expect(olaHistory(projectId, userId).messages).toHaveLength(2);
+  });
+
+  it("rejects stopped projects after a model reply and when accepting a preview", async () => {
+    await expect(requestOlaEdit(projectId, userId, prompt(), async () => {
+      fixture.database!.prepare("UPDATE projects SET status='stopped' WHERE id=?").run(projectId);
+      return { reply: "Updated", operations: [{ op: "set", path: ["headline"], value: "After" }] };
+    })).rejects.toThrow(/changed/);
+    fixture.database!.prepare("UPDATE projects SET status='complete' WHERE id=?").run(projectId);
+    const result = await requestOlaEdit(projectId, userId, prompt(), async () => ({ reply: "Updated", operations: [{ op: "set", path: ["headline"], value: "After" }] }));
+    fixture.database!.prepare("UPDATE projects SET status='stopped' WHERE id=?").run(projectId);
+    expect(() => decideOlaProposal(projectId, userId, { proposalId: result.pending!.id, decision: "accepted", currentDraft: draft })).toThrow(/stopped/);
+  });
+
+  it("keeps a pending preview for questions and records replies in insertion order", async () => {
+    const first = await requestOlaEdit(projectId, userId, prompt(), async () => ({ reply: "Changed headline", operations: [{ op: "set", path: ["headline"], value: "After" }] }));
+    const second = await requestOlaEdit(projectId, userId, prompt({ prompt: "Why this headline?", draft: first.pending!.candidate, refineProposalId: first.pending!.id }), async () => ({ reply: "It is easier to read", operations: [] }));
+    expect(second.pending?.id).toBe(first.pending?.id);
+    expect(second.messages.map(message => message.role)).toEqual(["user", "assistant", "user", "assistant"]);
+  });
+
 });

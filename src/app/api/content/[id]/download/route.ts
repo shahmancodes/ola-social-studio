@@ -22,6 +22,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     const format = new URL(request.url).searchParams.get("format");
     let filename: string; let mime: string; let file: string;
     if (artifact.type === "post" && artifact.imagePath) { filename = "post.png"; mime = "image/png"; file = artifact.imagePath; }
+    else if (artifact.type === "poster" && artifact.imagePath) { filename = "poster-a4.png"; mime = "image/png"; file = artifact.imagePath; }
     else if (artifact.type === "story" && artifact.imagePath) { filename = "instagram-story.png"; mime = "image/png"; file = artifact.imagePath; }
     else if (artifact.type === "presentation" && artifact.pptxPath) { filename = "presentation.pptx"; mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"; file = artifact.pptxPath; }
     else if (artifact.type === "carousel") { const zip = new JSZip(); for (const file of artifact.imagePaths) zip.file(path.basename(file), await fs.readFile(file)); zip.file("caption.txt", artifact.caption); return new Response(new Uint8Array(await zip.generateAsync({ type: "uint8array" })), { headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="${id}.zip"` } }); }

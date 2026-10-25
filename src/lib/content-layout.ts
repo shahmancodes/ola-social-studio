@@ -1,17 +1,33 @@
+import { textboxCssText } from './textbox-style';
+import { CANVAS_TYPOGRAPHY_CSS } from "./canvas-typography";
+import { typographyHtml, type TextTypography } from './design-typography';
+import type { EditorAppearance } from "./editor-appearance";
+import { applyEditorAppearance } from "./scene-editor-appearance";
+import { buildPosterScene } from "./poster-scene";
 import fs from "node:fs/promises";
 import sharp from "sharp";
-import type { ContentBrand } from "./content-brand";
+import { buildSocialScene } from "./social-scene";
+import { renderMeasuredScene } from "./scene-renderer";
+import type { BrandAsset, ContentBrand } from "./content-brand";
 import type { VisualLayout } from "./visual-layout-types";
 import { storyTextIsSafe } from "./story-safe-area";
+import { buildCompositionScene } from "./composition-scene";
+import type { Composition } from "./composition";
+import type { SlideSpec } from "./schemas";
+import type { ResponsiveSceneLayout } from "./responsive-layout";
+import {recipeCredit} from './design-recipes';
+import { freeformScene, identifySceneObjects } from './freeform-scene';
+import { lineSegments, type LineStyle } from './design-primitives';
 
 export type VisualOverride = { x?: number; y?: number; width?: number; height?: number; fontSize?: number; color?: string };
-export type VisualPage = { title: string; body: string; cta?: string; storyTreatment?: "quick-tip" | "announcement" | "image-showcase" | "conversation-prompt"; layout?: VisualLayout; eyebrow?: string; assetId?: string; visualOverrides?: { background?: string; eyebrow?: VisualOverride; title?: VisualOverride; body?: VisualOverride; cta?: VisualOverride; artwork?: VisualOverride } };
-export type SceneElement =
-  | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; radius?: number }
-  | { kind: "line"; x: number; y: number; x2: number; y2: number; color: string; width: number }
-  | { kind: "text"; x: number; y: number; w: number; h: number; text: string; size: number; weight: "regular" | "bold"; color: string; align?: "left" | "center"; lines: string[] }
-  | { kind: "image"; x: number; y: number; w: number; h: number; bytes: Buffer };
-export type VisualScene = { width: number; height: number; background: string; elements: SceneElement[] };
+export type VisualContent = { kind: "checklist" | "process" | "comparison" | "example"; items: Array<{label:string;detail:string}> };
+export type VisualPage = { semanticDesign?: import("./semantic-design").SemanticDesign; supportingAssetIds?: string[]; editorAppearance?: EditorAppearance; composition?: Composition; semanticComponent?: SlideSpec["semanticComponent"]; credit?: string; visualContent?: VisualContent; title: string; body: string; cta?: string; storyTreatment?: "quick-tip" | "announcement" | "image-showcase" | "conversation-prompt"; layout?: VisualLayout; eyebrow?: string; assetId?: string; visualOverrides?: { background?: string; eyebrow?: VisualOverride; title?: VisualOverride; body?: VisualOverride; cta?: VisualOverride; artwork?: VisualOverride } };
+export type SceneElement = ({ editorId?: string; rotation?: number; hidden?: boolean; textbox?: import('./textbox-style').ResolvedTextbox; typography?: TextTypography; accentColor?: string; derivedValue?: {valueSource:string;unitSource:string}; id?: string; italic?: boolean; underline?: boolean; fontFamily?: string; copyId?: string; copySource?: string; inkBounds?: { x:number; y:number; w:number; h:number }; groupId?: string; layoutDecoration?: boolean; minSize?: number; absoluteOverride?: { x?: number; y?: number } } & (
+  | { kind: "rect"; x: number; y: number; w: number; h: number; fill: string; radius?: number; fitText?: string; textPadding?: number }
+  | ({ kind: "line"; x: number; y: number; x2: number; y2: number; color: string; width: number } & LineStyle)
+  | { kind: "text"; x: number; y: number; w: number; h: number; text: string; size: number; weight: "regular" | "bold"; color: string; align?: "left" | "center" | "right"; lines: string[] }
+  | { kind: "image"; embeddedText?:import('./semantic-component-image').ComponentTextMetrics; originalWidth?: number; originalHeight?: number; x: number; y: number; w: number; h: number; bytes: Buffer }));
+export type VisualScene = { freeform?: boolean; width: number; height: number; background: string; elements: SceneElement[]; compositionVersion?: 1; responsiveLayout?: ResponsiveSceneLayout; additionalFontCss?: string; measured?: boolean; fonts?: BrandAsset[]; headingFontId?: string; bodyFontId?: string; fontReport?: string[] };
 
 const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 function lines(text: string, width: number, size: number) {
@@ -39,7 +55,7 @@ function bodyParts(body: string) {
   return body.split(/\n+|(?<=\.)\s+(?=[A-Z])/).map((part) => part.trim().replace(/^[-•\d.)\s]+/, "")).filter(Boolean);
 }
 
-function pageSize(format: "post" | "story" | "carousel" | "presentation") {
+function pageSize(format: "post" | "story" | "poster" | "carousel" | "presentation") {
   return format === "story" ? { width: 1080, height: 1920 } : format === "presentation" ? { width: 1280, height: 720 } : { width: 1080, height: 1350 };
 }
 
@@ -50,7 +66,23 @@ async function imageBytes(asset?: { diskPath: string }) {
 }
 
 /** The same scene feeds PNG export, the editor preview and editable PPTX export. */
-export async function buildVisualScene(format: "post" | "story" | "carousel" | "presentation", page: VisualPage, brand: ContentBrand, index = 0, total = 1, component?: Buffer): Promise<VisualScene> {
+export async function buildVisualScene(format: "post" | "story" | "poster" | "carousel" | "presentation", page: VisualPage, brand: ContentBrand, index = 0, total = 1, component?: Buffer): Promise<VisualScene> {
+  for(const id of [page.assetId,...(page.supportingAssetIds??[])]){
+    const asset=brand.assets.find(a=>a.id===id);
+    if(asset?.attribution&&!page.credit?.includes(asset.attribution))throw Error('Selected artwork requires its recorded attribution on this page.');
+  }
+  const base = await buildBaseVisualScene(format, page, brand, index, total, component);
+  identifySceneObjects(base);
+  if (page.editorAppearance?.freeform) return freeformScene(await applyEditorAppearance(base, page, brand), page, brand);
+  return applyEditorAppearance(base, page, brand);
+}
+
+async function buildBaseVisualScene(format: "post" | "story" | "poster" | "carousel" | "presentation", page: VisualPage, brand: ContentBrand, index = 0, total = 1, component?: Buffer): Promise<VisualScene> {
+  if (page.composition) {
+    return buildCompositionScene(format, page, brand, index, total);
+  }
+  if (format === "poster") return buildPosterScene(page, brand, component);
+  if ((format === "story" || format === "carousel") && brand.designSystem) return buildSocialScene(format,page,brand,index,total,component);
   const { width: W, height: H } = pageSize(format);
   const p = brand.palette;
   const elements: SceneElement[] = [];
@@ -275,16 +307,27 @@ export async function buildVisualScene(format: "post" | "story" | "carousel" | "
 }
 
 export function sceneSvg(scene: VisualScene) {
-  const elements = scene.elements.map((element) => {
+  const elements = scene.elements.filter(e => !e.hidden).map((element) => {
+    const render = () => {
     if (element.kind === "rect") return `<rect x="${element.x}" y="${element.y}" width="${element.w}" height="${element.h}" rx="${element.radius ?? 0}" fill="${element.fill}"/>`;
-    if (element.kind === "line") return `<line x1="${element.x}" y1="${element.y}" x2="${element.x2}" y2="${element.y2}" stroke="${element.color}" stroke-width="${element.width}"/>`;
+    if (element.kind === "line") return lineSegments(element).map(s=>`<line x1="${s.x}" y1="${s.y}" x2="${s.x2}" y2="${s.y2}" stroke="${element.color}" stroke-width="${element.width}" stroke-linecap="round"/>`).join('');
     if (element.kind === "image") return `<image href="data:image/png;base64,${element.bytes.toString("base64")}" x="${element.x}" y="${element.y}" width="${element.w}" height="${element.h}" preserveAspectRatio="xMidYMid meet"/>`;
-    const anchor = element.align === "center" ? "middle" : "start";
-    const x = element.align === "center" ? element.x + element.w / 2 : element.x;
+    if (scene.measured) {
+      const css = `${CANVAS_TYPOGRAPHY_CSS}${textboxCssText(element.textbox)}width:${element.w}px;${scene.freeform?`min-height:${element.h}px;`:""}font-family:${element.fontFamily ?? 'Arial,sans-serif'};font-size:${element.size}px;font-weight:${element.weight === 'bold' ? 700 : 400};font-style:${element.italic ? 'italic' : 'normal'};text-decoration:${element.underline ? 'underline' : 'none'};color:${element.color};text-align:${element.align ?? 'left'};line-height:${element.typography?.leading ?? 1.15};letter-spacing:${element.typography?.tracking ?? 0}em;text-wrap:${element.typography?.wrap ?? (scene.compositionVersion === 1 ? 'balance' : 'wrap')};`;
+      return `<foreignObject x="${element.x}" y="${element.y}" width="${element.w}" height="${Math.max(element.h, element.size * 1.4)}" overflow="visible"><div xmlns="http://www.w3.org/1999/xhtml" style="${escape(css)}">${typographyHtml(element.text,element.typography,element.accentColor)}</div></foreignObject>`;
+    }
+    const anchor = element.align === "center" ? "middle" : element.align === "right" ? "end" : "start";
+    const x = element.align === "center" ? element.x + element.w / 2 : element.align === "right" ? element.x + element.w : element.x;
     const tspans = element.lines.map((line, index) => `<tspan x="${x}" y="${element.y + (index + 1) * element.size * 1.15}">${escape(line)}</tspan>`).join("");
-    return `<text font-family="Arial,sans-serif" font-size="${element.size}" font-weight="${element.weight === "bold" ? 700 : 400}" fill="${element.color}" text-anchor="${anchor}">${tspans}</text>`;
+    return `<text font-family="${element.fontFamily ?? "Arial,sans-serif"}" font-size="${element.size}" font-weight="${element.weight === "bold" ? 700 : 400}" font-style="${element.italic ? "italic" : "normal"}" text-decoration="${element.underline ? "underline" : "none"}" fill="${element.color}" text-anchor="${anchor}">${tspans}</text>`;
+    };
+    const markup=render();
+    const cx=element.kind==='line'?(element.x+element.x2)/2:element.x+element.w/2;
+    const cy=element.kind==='line'?(element.y+element.y2)/2:element.y+element.h/2;
+    return element.rotation ? `<g transform="rotate(${element.rotation} ${cx} ${cy})">${markup}</g>` : markup;
   }).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${scene.width}" height="${scene.height}" viewBox="0 0 ${scene.width} ${scene.height}"><rect width="100%" height="100%" fill="${scene.background}"/>${elements}</svg>`;
+  const credit=scene.responsiveLayout?.recipe?`<metadata>${escape(JSON.stringify(recipeCredit(scene.responsiveLayout.recipe.id)))}</metadata>`:'';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${scene.width}" height="${scene.height}" viewBox="0 0 ${scene.width} ${scene.height}">${credit}<rect width="100%" height="100%" fill="${scene.background}"/>${elements}</svg>`;
 }
 
-export async function scenePng(scene: VisualScene) { return sharp(Buffer.from(sceneSvg(scene))).png().toBuffer(); }
+export async function scenePng(scene: VisualScene) { return scene.measured ? renderMeasuredScene(scene) : sharp(Buffer.from(sceneSvg(scene))).png().toBuffer(); }

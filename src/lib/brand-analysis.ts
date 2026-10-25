@@ -1,10 +1,14 @@
+import { generateText } from "./ai-usage";
+import { modelFor, providerEnabled, fallbackAllowed, withAiRun } from "./ai-execution";
 import fs from "node:fs/promises";
 import sharp from "sharp";
-import { createGateway, generateText, Output } from "ai";
+import { createGateway, Output } from "ai";
 import { z } from "zod";
-import { safeRemoteUrl } from "./internet-assets";
+import { safeRemoteUrl, fetchImage } from "./internet-assets";
 import { db, now } from "./platform-db";
-import { getBrand, getCompany, saveBrand } from "./platform";
+import crypto from "node:crypto";
+import { BrandLibrarySchema } from "./brand-library";
+import { getBrand, getCompany, saveBrand, storeCompanyAsset } from "./platform";
 
 const ThemeNotes = z.object({
   tagline: z.string().max(120),
@@ -20,10 +24,10 @@ function uniqueHex(input: string) {
 }
 
 function plainText(input: string) {
-  return input.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ").replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " ").replace(/&(?:amp|nbsp|quot|lt|gt);/g, " ").replace(/\s+/g, " ").trim();
+  return input.replace(/&#(x[0-9a-f]+|[0-9]+);/gi,(_,n)=>String.fromCodePoint(Math.min(0x10ffff,parseInt(n[0].toLowerCase()==='x'?n.slice(1):n,n[0].toLowerCase()==='x'?16:10)))).replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ").replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " ").replace(/&(?:amp|nbsp|quot|lt|gt);/g, " ").replace(/\s+/g, " ").trim();
 }
 
-async function websiteSignals(raw: string) {
+export async function websiteSignals(raw: string) {
   if (!raw) return { url: "", title: "", description: "", colors: [] as string[], typography: "" };
   let url = await safeRemoteUrl(raw);
   for (let redirect = 0; redirect < 4; redirect++) {
@@ -57,7 +61,11 @@ async function websiteSignals(raw: string) {
       return Math.max(...values) - Math.min(...values) >= 25 && !values.every((value) => value > 225);
     }).sort((a, b) => (b === theme.toUpperCase() ? 1000 : (html.match(new RegExp(b, "gi")) ?? []).length) - (a === theme.toUpperCase() ? 1000 : (html.match(new RegExp(a, "gi")) ?? []).length)).slice(0, 5);
     const typography = html.match(/font-family\s*:\s*['"]?([^;'"}<]+)/i)?.[1]?.split(",")[0]?.trim().slice(0, 60) ?? "";
-    return { url: url.toString(), title, description, colors, typography };
+    const image=html.match(/<meta\s+[^>]*property=["']og:image["'][^>]*content=["']([^"']+)/i)?.[1]??'';
+    const headings=[...html.matchAll(/<h[12]\b[^>]*>([\s\S]*?)<\/h[12]>/gi)].map(m=>plainText(m[1])).filter(Boolean).slice(0,5);
+    const excerpt=[description,...headings].join(' ').split(/\s+/).slice(0,55).join(' ').slice(0,500);
+    const locale=html.match(/<html[^>]*lang=["']([^"']+)/i)?.[1]??'';
+    return { url: url.toString(), title, description, colors, typography, excerpt, locale, image: image ? new URL(image,url).toString() : undefined };
   }
   throw new Error("Website redirected too many times.");
 }
@@ -97,11 +105,11 @@ export async function analyzeBrand(companyId: string, website: string) {
     audience: current.audience || "",
   };
   let notes = fallback;
-  if (process.env.AI_GATEWAY_API_KEY) {
+  if (providerEnabled("vercel")) {
     try {
       const gateway = createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY });
       const result = await generateText({
-        model: gateway(process.env.VERCEL_AI_MODEL || "openai/gpt-6-luna"),
+        model: gateway(modelFor("vercel")),
         output: Output.object({ schema: ThemeNotes, name: "company_theme_notes" }),
         maxOutputTokens: 900,
         timeout: 45_000,
@@ -112,6 +120,7 @@ export async function analyzeBrand(companyId: string, website: string) {
       process.stderr.write(`Brand theme AI unavailable; using extracted cues: ${error instanceof Error ? error.message : String(error)}\n`);
     }
   }
+  await collectBrandLibrary(companyId);
   const latest = getBrand(companyId);
   const colors = latest.colors.length ? latest.colors : [...new Set([...signals.colors, ...await logoColors(companyId)])].slice(0, 5);
   const typography = signals.typography || assets.find((asset) => asset.category === "font")?.name.replace(/\.(woff2?|ttf|otf)$/i, "") || latest.themeCard?.typography || "Use a clear, readable sans-serif.";
@@ -141,7 +150,7 @@ export async function runBrandJob(jobId?: string) {
   } catch (error) { database.exec("ROLLBACK"); throw error; }
   if (!job) return false;
   try {
-    await analyzeBrand(job.company_id, job.website);
+    await withAiRun({ companyId: job.company_id, jobId: job.id, stage: "brand-analysis" }, () => analyzeBrand(job!.company_id, job!.website));
     database.prepare("UPDATE brand_jobs SET status='complete',error=NULL,updated_at=? WHERE id=?").run(now(), job.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -149,4 +158,28 @@ export async function runBrandJob(jobId?: string) {
     process.stderr.write(`Brand analysis ${job.id} failed: ${message}\n`);
   }
   return true;
+}
+
+/** Fetch explicit company URLs only; every redirect uses the SSRF guard and byte/time limits. */
+export async function collectBrandLibrary(companyId:string) {
+  const brand=getBrand(companyId),old=brand.library;
+  const requests=[...(brand.website?[{url:brand.website,channel:'website' as const}]:[]),...brand.socialLinks.map(s=>({url:s.url,channel:'social' as const})),...(old?.sources??[]).map(s=>({url:s.url,channel:s.channel}))];
+  const unique=[...new Map(requests.map(s=>[new URL(s.url).href,s])).values()].slice(0,12),captured=[];
+  for(const request of unique){
+    const prior=old?.sources.find(s=>s.url===request.url),capturedAt=now();
+    try{
+      const signal=await websiteSignals(request.url);
+      if(!('excerpt' in signal)||!String(signal.excerpt).trim())throw new Error('The public page returned no readable content; add a reviewed example manually.');
+      let assetId=prior?.assetId;
+      if(!assetId&&request.channel!=='social'&&'image' in signal&&signal.image&&captured.filter(s=>s.assetId).length<3){
+        try{const bytes=await sharp(await fetchImage(String(signal.image)),{limitInputPixels:30_000_000}).resize({width:1400,height:1400,fit:'inside',withoutEnlargement:true}).png().toBuffer();assetId=await storeCompanyAsset(companyId,`brand-reference-${crypto.createHash('sha256').update(request.url).digest('hex').slice(0,12)}.png`,bytes,'image/png','reference',{sourceUrl:String(signal.image),rightsNote:'Reference-only visual evidence. Not licensed for artwork reuse.'},'supporting');}catch{/* A missing preview does not erase source text or block onboarding. */}
+      }
+      captured.push({id:prior?.id??crypto.createHash('sha256').update(request.url).digest('hex').slice(0,24),url:signal.url,title:signal.title||prior?.title||new URL(request.url).hostname,channel:request.channel,capturedAt,status:'captured' as const,excerpt:'excerpt' in signal?String(signal.excerpt):'',summary:prior?.summary||signal.description,visualNotes:prior?.visualNotes||`Extracted website cues: colors ${signal.colors.join(', ')||'not detected'}; font ${signal.typography||'not detected'}.`,writingNotes:prior?.writingNotes||'Use captured headings and description as voice evidence only.',usage:prior?.usage??'reference-only' as const,...(assetId?{assetId}:{})});
+    }catch(error){
+      // Keep earlier verified examples, but expose the failed refresh rather than fabricate content.
+      captured.push(prior?.status==='captured'?{...prior,error:`Refresh unavailable: ${error instanceof Error?error.message:'fetch failed'}`.slice(0,300)}:{id:prior?.id??crypto.createHash('sha256').update(request.url).digest('hex').slice(0,24),...request,title:prior?.title||new URL(request.url).hostname,capturedAt,status:'unavailable' as const,excerpt:'',summary:prior?.summary??'',visualNotes:prior?.visualNotes??'',writingNotes:prior?.writingNotes??'',usage:'reference-only' as const,error:(error instanceof Error?error.message:'Source unavailable').slice(0,300)});
+    }
+  }
+  const latest=getBrand(companyId),library=BrandLibrarySchema.parse({...latest.library,version:1,revision:(latest.library?.revision??0)+1,updatedAt:now(),sources:[...new Map([...captured,...(latest.library?.sources??[]).filter(s=>!unique.some(u=>new URL(u.url).href===new URL(s.url).href))].map(s=>[new URL(s.url).href,s])).values()].slice(0,60)});
+  saveBrand(companyId,{...latest,library});return library;
 }

@@ -1,78 +1,71 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { SimpleArtifact } from "@/lib/simple-content";
-import type { OlaTarget } from "@/lib/ola-edit";
-import { useOlaMode } from "./ola-mode";
-import styles from "./visual-content-canvas.module.css";
-import { STORY_SAFE_AREA } from "@/lib/story-safe-area";
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import type { SimpleArtifact } from '@/lib/simple-content';
+import type { OlaTarget } from '@/lib/ola-edit';
+import { useOlaMode } from './ola-mode';
+import type { CanvasPreview } from '@/lib/canvas-text';
+import { artifactPages, withArtifactPages, type CopyPage } from '@/lib/composition';
+import type { CanvasReviewFocus } from '@/lib/editor-review';
+import { persistedObjects, reflowCanvasObjects, type CanvasObject, type PreviewObject } from '@/lib/freeform-canvas';
+import { InstagramPreview } from './instagram-preview';
+import { FreeformPageCanvas } from './freeform-page-canvas';
+import styles from './visual-content-canvas.module.css';
 
-type VisualArtifact = Extract<SimpleArtifact, { type: "post" | "story" | "carousel" | "presentation" }>;
-type Field = "title" | "body";
-
-function pageFields(artifact: VisualArtifact, index: number) {
-  return artifact.type === "post" || artifact.type === "story"
-    ? { title: artifact.headline, body: artifact.subline, layout: artifact.layout ?? "split" }
-    : { title: artifact.slides[index]?.title ?? "", body: artifact.slides[index]?.body ?? "", layout: artifact.slides[index]?.layout ?? "hero" };
-}
-
-export function VisualContentCanvas({ artifact, projectId, version, activeIndex, onChange, onSelectionChange, onActiveIndexChange }: { artifact: VisualArtifact; projectId: string; version: number; activeIndex: number; onChange: (next: SimpleArtifact) => void; onSelectionChange?: (target: OlaTarget) => void; onActiveIndexChange?: (index: number) => void }) {
-  const olaMode = useOlaMode();
-  const [url, setUrl] = useState(`/api/content/${projectId}/preview?slide=${activeIndex + 1}&v=${version}`);
-  const [editing, setEditing] = useState<Field | null>(null);
-  const [error, setError] = useState("");
-  const [showStoryGuide, setShowStoryGuide] = useState(true);
-  const [showInstagramUi, setShowInstagramUi] = useState(false);
-  const objectUrl = useRef<string | null>(null);
-  const revision = useRef(0);
-  const fields = pageFields(artifact, activeIndex);
-  useEffect(() => {
-    const current = ++revision.current;
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`/api/content/${projectId}/draft-preview`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ artifact, index: activeIndex }), signal: controller.signal });
-        if (!response.ok) throw new Error((await response.json()).error ?? "Preview unavailable.");
-        const next = URL.createObjectURL(await response.blob());
-        if (current !== revision.current) { URL.revokeObjectURL(next); return; }
-        if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
-        objectUrl.current = next; setUrl(next); setError("");
-      } catch (cause) { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Preview unavailable."); }
-    }, 380);
-    return () => { controller.abort(); clearTimeout(timer); };
-  }, [artifact, activeIndex, projectId]);
-  useEffect(() => () => { if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); }, []);
-
-  function change(field: Field, value: string) {
-    if (artifact.type === "post" || artifact.type === "story") onChange({ ...artifact, [field === "title" ? "headline" : "subline"]: value });
-    else onChange({ ...artifact, slides: artifact.slides.map((slide, index) => index === activeIndex ? { ...slide, [field]: value } : slide) });
+type VisualArtifact=Extract<SimpleArtifact,{type:'post'|'story'|'poster'|'carousel'|'presentation'}>;
+export function VisualContentCanvas({artifact,projectId,version,activeIndex,onChange,onSelectionChange,onActiveIndexChange,disabled=false,onEditingChange,onPreviewPendingChange,companyId,assets=[],fonts=[],reviewFocus,onUndo,onRedo}: {
+  artifact:VisualArtifact;projectId:string;version:number;activeIndex:number;onChange:(next:SimpleArtifact,historyGroup?:string)=>void;
+  onSelectionChange?:(target:OlaTarget)=>void;onActiveIndexChange?:(index:number)=>void;disabled?:boolean;onEditingChange?:(editing:boolean)=>void;
+  onPreviewPendingChange?:(pending:boolean)=>void;reviewFocus?:CanvasReviewFocus|null;onUndo?:()=>void;onRedo?:()=>void;
+  companyId:string;assets?:Array<{id:string;name:string}>;fonts?:Array<{id:string;name:string}>;advanced?:ReactNode;
+}) {
+  const olaMode=useOlaMode();
+  const [preview,setPreview]=useState<CanvasPreview|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[reflowing,setReflowing]=useState(false);
+  const artifactRef=useRef(artifact);artifactRef.current=artifact;
+  const revision=useRef(0),mounted=useRef(true);
+  const page=artifactPages(artifact)[activeIndex];
+  const signature=JSON.stringify({page,index:activeIndex,projectId,total:'slides' in artifact?artifact.slides.length:1,storyTreatment:artifact.type==='story'?artifact.storyTreatment:undefined});
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
+  useEffect(()=>{onPreviewPendingChange?.(loading||reflowing||!!error);},[loading,reflowing,error,onPreviewPendingChange]);
+  useEffect(()=>()=>onPreviewPendingChange?.(false),[onPreviewPendingChange]);
+  async function requestPreview(value:VisualArtifact,signal?:AbortSignal):Promise<CanvasPreview>{
+    const response=await fetch(`/api/content/${projectId}/draft-preview`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({artifact:value,index:activeIndex,editor:true}),signal});
+    if(!response.ok)throw new Error((await response.json()).error??'Preview unavailable.');
+    return response.json();
   }
-  function select(field: Field) {
-    const path = artifact.type === "post" || artifact.type === "story" ? [field === "title" ? "headline" : "subline"] : ["slides", activeIndex, field];
-    onSelectionChange?.({ label: field === "title" ? "Title" : "Body", path });
-    if (!olaMode) setEditing(field);
+  useEffect(()=>{
+    const current=++revision.current,controller=new AbortController();setLoading(true);
+    const timer=setTimeout(async()=>{try{const next=await requestPreview(artifactRef.current,controller.signal);if(current!==revision.current||controller.signal.aborted)return;setPreview(next);setError('');}catch(cause){if(!controller.signal.aborted)setError(cause instanceof Error?cause.message:'Preview unavailable.');}finally{if(current===revision.current&&!controller.signal.aborted)setLoading(false);}},380);
+    return()=>{controller.abort();clearTimeout(timer);};
+  // Requests only depend on visible page content, not save versions or captions.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[signature]);
+  function withPage(next:CopyPage){const current=artifactRef.current;return withArtifactPages(current,artifactPages(current).map((p,i)=>i===activeIndex?next:p)) as VisualArtifact;}
+  function updatePage(next:CopyPage,group?:string){const value=withPage(next);artifactRef.current=value;onChange(value,group);}
+  function updateObjects(objects:CanvasObject[],group?:string){const current=artifactPages(artifactRef.current)[activeIndex];updatePage({...current,editorAppearance:{...current.editorAppearance,freeform:{version:1,objects}}},group);}
+  async function changeLayout(next:CopyPage){
+    if(reflowing||!preview)return;
+    setReflowing(true);setError('');
+    const before=artifactRef.current;
+    const previous:PreviewObject[]=page.editorAppearance?.freeform?.objects??preview.objects??[];
+    const candidate={...next,editorAppearance:{...next.editorAppearance,freeform:undefined}};
+    try{
+      const value=withPage(candidate),generated=await requestPreview(value);
+      if(!mounted.current)return;
+      // Do not overwrite a simultaneous change from undo, AI or another control.
+      if(artifactRef.current!==before)throw new Error('The design changed while applying this layout. Try the layout again.');
+      const objects=reflowCanvasObjects(generated.objects??[],previous);
+      setPreview(generated);updatePage({...candidate,editorAppearance:{...candidate.editorAppearance,freeform:{version:1,objects:persistedObjects(objects)}}});
+    }catch(cause){if(mounted.current)setError(cause instanceof Error?cause.message:'Could not apply this layout.');}
+    finally{if(mounted.current)setReflowing(false);}
   }
-  useEffect(() => { setEditing(null); }, [olaMode, activeIndex]);
-  const appearancePath = artifact.type === "post" || artifact.type === "story" ? ["visualOverrides"] : ["slides", activeIndex, "visualOverrides"];
-  const titleBox = fields.layout === "split" ? styles.titleSplit : fields.layout === "statement" || fields.layout === "closing" ? styles.titleStatement : styles.titleDefault;
-  const bodyBox = fields.layout === "split" ? styles.bodySplit : fields.layout === "statement" || fields.layout === "closing" ? styles.bodyStatement : styles.bodyDefault;
-  const storyTitleBox = artifact.type === "story" && artifact.storyTreatment ? styles[`storyTitle${artifact.storyTreatment === "quick-tip" ? "Tip" : artifact.storyTreatment === "announcement" ? "Announcement" : artifact.storyTreatment === "image-showcase" ? "Showcase" : "Conversation"}`] : titleBox;
-  const storyBodyBox = artifact.type === "story" && artifact.storyTreatment ? styles[`storyBody${artifact.storyTreatment === "quick-tip" ? "Tip" : artifact.storyTreatment === "announcement" ? "Announcement" : artifact.storyTreatment === "image-showcase" ? "Showcase" : "Conversation"}`] : bodyBox;
-  return <div className={styles.wrap} data-comment-mode={olaMode || undefined}>
-    {artifact.type === "story" && <div className={styles.storyControls}><button type="button" aria-pressed={showStoryGuide} onClick={() => setShowStoryGuide((value) => !value)}>Safe area {showStoryGuide ? "on" : "off"}</button><button type="button" aria-pressed={showInstagramUi} onClick={() => setShowInstagramUi((value) => !value)}>Instagram interface {showInstagramUi ? "on" : "off"}</button></div>}
-    <div className={`${styles.canvas} ${artifact.type === "presentation" ? styles.wide : artifact.type === "story" ? styles.tall : styles.portrait}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt={`Live ${artifact.type} preview`} />
-      {artifact.type === "story" && showStoryGuide && <div className={styles.safeArea} style={{ top: `${STORY_SAFE_AREA.top / STORY_SAFE_AREA.height * 100}%`, bottom: `${(STORY_SAFE_AREA.height - STORY_SAFE_AREA.bottom) / STORY_SAFE_AREA.height * 100}%` }} aria-hidden="true"><span>KEEP TEXT INSIDE</span></div>}
-      {artifact.type === "story" && showInstagramUi && <div className={styles.instagramUi} aria-hidden="true"><div className={styles.instagramTop}>◯ &nbsp; your story <span>×</span></div><div className={styles.instagramBottom}>Send message… <span>♡ &nbsp; ↗</span></div></div>}
-      <button type="button" data-comment-target className={styles.backgroundTarget} aria-label="Select page background for Ola" title="Select background for Ola" onClick={() => onSelectionChange?.({ label: "Background appearance", path: [...appearancePath, "background"] })} />
-      {fields.layout === "split" ? <button type="button" data-comment-target className={styles.artworkTarget} aria-label="Select artwork for Ola" title="Select artwork for Ola" onClick={() => onSelectionChange?.({ label: "Artwork appearance", path: [...appearancePath, "artwork"] })} /> : null}
-      {(["title", "body"] as const).map((field) => editing === field ? <textarea key={field} autoFocus aria-label={`Edit ${field} on canvas`} className={`${styles.inline} ${field === "title" ? storyTitleBox : storyBodyBox}`} value={fields[field]} onChange={(event) => change(field, event.target.value)} onBlur={() => setEditing(null)} onKeyDown={(event) => { if (event.key === "Escape") setEditing(null); }} /> : <button key={field} type="button" data-comment-target className={`${styles.hotspot} ${field === "title" ? storyTitleBox : storyBodyBox}`} aria-label={`${olaMode ? "Comment on" : "Edit"} ${field} on canvas`} title={`${olaMode ? "Comment on" : "Click to edit"} ${field}`} onClick={() => select(field)}><span>{olaMode ? "Comment on" : "Edit"} {field}</span></button>)}
-    </div>
-    {artifact.type === "carousel" && <div className={styles.thumbnailStrip} aria-label="Carousel slide order">{artifact.slides.map((slide, index) => <button type="button" key={slide.id ?? index} onClick={() => onActiveIndexChange?.(index)} aria-current={index === activeIndex ? "true" : undefined} aria-label={`Open slide ${index + 1}: ${slide.title}`} className={`${styles.thumbnail} ${index === activeIndex ? styles.thumbnailActive : ""}`}><span>{index + 1}</span>{artifact.imagePaths[index] ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={`/api/content/${projectId}/preview?slide=${index + 1}&v=${version}`} alt="" /> : <strong>{slide.title}</strong>}<small>{slide.role ?? "Slide"}</small></button>)}</div>}
-    {artifact.type === "carousel" && <label className={styles.captionEditor}><strong>Caption</strong><textarea value={artifact.caption} onChange={(event) => onChange({ ...artifact, caption: event.target.value })} rows={4} aria-label="Carousel caption" /></label>}
-    {(artifact.type === "story" || artifact.type === "carousel") && <a className={styles.exportLink} href={`/api/content/${projectId}/download`}>Export {artifact.type === "story" ? "1080 × 1920 PNG" : "ordered slides and caption ZIP"}</a>}
-    {error && <p className={styles.error} role="status">{error}</p>}
-    <p className={styles.help}>{olaMode ? "Select a component to add a comment for Ola." : "Click text to edit it. Use the controls for layout and artwork."}</p>
+  const single=artifact.type==='post'||artifact.type==='story'||artifact.type==='poster';
+  return <div className={styles.wrap}>
+    {(artifact.type==='post'||artifact.type==='carousel')&&<InstagramPreview artifact={artifact} projectId={projectId} brandName={preview?.brandName} disabled={disabled}/>}
+    {preview?<FreeformPageCanvas projectId={projectId} story={artifact.type==='story'} preview={preview} page={page} companyId={companyId} assets={assets} fonts={fonts} disabled={disabled||reflowing} commentMode={olaMode} busy={loading||reflowing} onObjects={updateObjects} onPageChange={updatePage} onLayout={changeLayout} onEditingChange={onEditingChange} onUndo={onUndo} onRedo={onRedo} focusIds={reviewFocus?[...reviewFocus.targets,...(reviewFocus.source?[reviewFocus.source]:[])]:[]}
+      onSelect={(object,index)=>{if(!page.editorAppearance?.freeform)updateObjects(persistedObjects(preview.objects??[]));onSelectionChange?.({label:object.kind==='text'?object.text?.slice(0,60)??'Text':object.kind,path:single?['editorAppearance','freeform','objects',index]:['slides',activeIndex,'editorAppearance','freeform','objects',index],id:object.id});}}/>:<p className={styles.help}>Opening your canvas…</p>}
+    {error&&<p className={styles.error} role="alert">{error}</p>}
+    {artifact.type==='carousel'&&<div className={styles.thumbnailStrip} aria-label="Carousel slide order">{artifact.slides.map((slide,index)=><button type="button" key={slide.id??index} onClick={()=>onActiveIndexChange?.(index)} aria-current={index===activeIndex?'true':undefined} aria-label={`Open slide ${index+1}: ${slide.title}`} className={`${styles.thumbnail} ${index===activeIndex?styles.thumbnailActive:''}`}><span>{index+1}</span>{artifact.imagePaths[index]?<img src={`/api/content/${projectId}/preview?slide=${index+1}&v=${version}`} alt=""/>:<strong>{slide.title}</strong>}</button>)}</div>}
+    {(artifact.type==='carousel'||artifact.type==='post')&&<label className={styles.captionEditor}><strong>Caption</strong><textarea value={artifact.caption} disabled={disabled||olaMode} onChange={e=>onChange({...artifactRef.current,caption:e.target.value} as SimpleArtifact)} rows={3} aria-label="Caption"/></label>}
   </div>;
 }

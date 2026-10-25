@@ -20,7 +20,7 @@ describe("structured visuals in simple formats", () => {
     expect(article.researchRequired).toBe(true);
     for (const type of ["presentation", "carousel"] as const) {
       const artifact = SimpleArtifactSchema.parse({ type, title: "Slides", caption: "Caption", slides: Array.from({ length: 3 }, (_, index) => ({ title: `Slide ${index + 1}`, body: "Body", semanticComponent: index === 1 ? visual : undefined })) });
-      expect(artifact.type !== "article" && artifact.type !== "post" && artifact.type !== "story" && artifact.slides[1].semanticComponent?.kind).toBe("barChart");
+      expect(artifact.type !== "article" && artifact.type !== "post" && artifact.type !== "story" && artifact.type !== "poster" && artifact.slides[1].semanticComponent?.kind).toBe("barChart");
     }
   });
 });

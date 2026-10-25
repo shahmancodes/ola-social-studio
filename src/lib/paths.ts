@@ -1,8 +1,8 @@
 import path from "node:path";
 import { companyForProject } from "./platform-db";
 
-export const ROOT_DIR = process.cwd();
-export const DATA_DIR = path.join(ROOT_DIR, ".data");
+import { ROOT_DIR, DATA_DIR } from "./data-directory";
+export { ROOT_DIR, DATA_DIR };
 export const PROJECTS_DIR = path.join(DATA_DIR, "projects");
 export const ASSETS_DIR = path.join(ROOT_DIR, "shared-assets");
 export const BRAND_FONTS_DIR = path.join(ASSETS_DIR, "fonts");

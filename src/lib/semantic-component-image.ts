@@ -6,8 +6,11 @@ import { getAssetCatalog, resolveAsset } from "./assets";
 import { getCompanyAsset } from "./platform";
 import type { SlideSpec } from "./schemas";
 import { semanticComponentHtml, SEMANTIC_COMPONENT_CSS } from "./semantic-components";
+import {componentSources,componentText} from './semantic-design';
+import {missingRenderedCopy} from './rendered-copy';
 
 type Component = NonNullable<SlideSpec["semanticComponent"]>;
+export type ComponentTextMetrics = {width:number;text:Array<{content:string;size:number}>};
 
 export async function semanticFontFaces() {
   const files = [
@@ -38,14 +41,40 @@ export async function componentIllustrationData(assetPath: string, companyId?: s
   return `data:${mime};base64,${(await fs.readFile(file)).toString("base64")}`;
 }
 
-export async function renderSemanticComponentPng(component: Component, accent = "#6848C9", companyId?: string) {
+export async function renderSemanticComponentPng(component: Component, accent = "#6848C9", companyId?: string, options?: { width: number; height: number; fontCss: string; sourceCopyOnly?: boolean; onTextMetrics?:(metrics:ComponentTextMetrics)=>void }) {
   const safeAccent = /^#[0-9a-fA-F]{6}$/.test(accent) ? accent : "#6848C9";
   const illustration = await componentIllustrationData(component.assetPath, companyId);
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({ viewport: { width: 1080, height: 760 }, deviceScaleFactor: 1 });
-    await page.setContent(`<style>${await semanticFontFaces()}*{box-sizing:border-box}html,body{margin:0;width:1080px;height:760px;background:transparent}.component-canvas{width:1080px;height:760px;container-type:inline-size;--rd-accent:${safeAccent}}${SEMANTIC_COMPONENT_CSS}</style><div class="component-canvas">${semanticComponentHtml(component, "", illustration)}</div>`);
+    const width = options?.width ?? 1080, height = options?.height ?? 760;
+    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+    await page.route('**/*', route => route.abort());
+    await page.setContent(`<style>${await semanticFontFaces()}${options?.fontCss ?? ""}*{box-sizing:border-box}html,body{margin:0;width:${width}px;height:${height}px;background:transparent}.component-canvas{width:${width}px;height:${height}px;container-type:inline-size;--rd-accent:${safeAccent}}${SEMANTIC_COMPONENT_CSS}${options && !component.style ? '.rd-semantic{--sc-font:OlaBody!important;--sc-heading-font:OlaHeading!important;--sc-quote-font:OlaHeading!important}' : ''}</style><div class="component-canvas">${semanticComponentHtml(component, "", illustration, options?.sourceCopyOnly)}</div>`);
     await page.evaluate(() => document.fonts.ready);
+    if(options?.onTextMetrics||options?.sourceCopyOnly){
+      const text=await page.evaluate(()=>{
+        const result:Array<{content:string;size:number}>=[],seen=new Set<Element>(),walker=document.createTreeWalker(document.querySelector('.component-canvas')!,NodeFilter.SHOW_TEXT);
+        let node:Node|null;
+        while((node=walker.nextNode())){
+          const parent=node.parentElement;if(!parent||parent.closest('style,script,desc,title')||!/[\p{L}\p{N}]/u.test(node.textContent??''))continue;
+          const element=parent.closest('text')??parent;if(seen.has(element))continue;
+          const style=getComputedStyle(element),bounds=element.getBoundingClientRect();
+          if(style.display==='none'||style.visibility==='hidden'||!bounds.width||!bounds.height)continue;
+          seen.add(element);
+          // SVG font sizes are in viewBox units, so include the actual screen transform.
+          const matrix=element instanceof SVGGraphicsElement?element.getScreenCTM():null;
+          const scale=matrix?Math.hypot(matrix.c,matrix.d):1;
+          const size=parseFloat(style.fontSize)*scale;
+          if(Number.isFinite(size)&&size>0)result.push({content:element.matches('text')?[...element.querySelectorAll('tspan')].map(line=>line.textContent?.trim()??'').join(' '):element.textContent?.trim()??'',size});
+        }
+        return result;
+      });
+      if(options.sourceCopyOnly){
+        const missing=missingRenderedCopy(componentSources(component).map(source=>({source,text:componentText(component,source)})),text.map(item=>item.content));
+        if(missing.length)throw Error(`The ${component.kind} renderer omitted canonical copy: ${missing.join(', ')}. Use a measured native component or a designed component that covers these fields; changing scale cannot restore missing text.`);
+      }
+      options.onTextMetrics?.({width,text});
+    }
     return await page.screenshot({ omitBackground: true });
   } finally {
     await browser.close();

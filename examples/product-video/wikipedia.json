@@ -1,0 +1,9 @@
+{
+  "url": "https://en.wikipedia.org/wiki/James_Webb_Space_Telescope",
+  "feature": "Follow your curiosity.", "brand": "Wikipedia", "accent": "#3366cc",
+  "steps": [
+    { "label": "Start with a question", "actions": [] },
+    { "label": "Explore the full picture", "selector": ".infobox" },
+    { "label": "Go deeper into the details", "actions": [{ "type": "scroll", "y": 1700 }] }
+  ]
+}

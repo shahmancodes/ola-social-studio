@@ -13,11 +13,14 @@ import { createSemanticComponent, SEMANTIC_COMPONENT_CHOICES, type SemanticKind 
 import { SemanticComponentFields } from "./semantic-component-fields";
 import { ComponentsIcon, ImageIcon, TextIcon } from "./ui-icons";
 import { COMMENT_CURSOR, useOlaMode } from "./ola-mode";
+import { FontPicker } from "./font-picker";
+import { EditorFonts, loadEditorFont } from "./editor-fonts";
+import { fontFamily, type CompanyFont, type FontSelection } from "@/lib/font-catalog";
 import type { OlaTarget } from "@/lib/ola-edit";
 
 type Element = DesignSpec["elements"][number];
 type Component = NonNullable<SlideSpec["semanticComponent"]>;
-type ObjectMeta = { id: string; kind: Element["kind"]; referenceId?: string; assetId?: string; sourceWidth?: number; sourceHeight?: number; component?: Component };
+type ObjectMeta = FontSelection & { id: string; kind: Element["kind"]; referenceId?: string; assetId?: string; sourceWidth?: number; sourceHeight?: number; component?: Component };
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 const color = (value: unknown, fallback = "#111111") => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
 
@@ -46,6 +49,19 @@ export function FreeformCanvasEditor({ projectId, companyId, initial, accent, bu
   const [addingComponent, setAddingComponent] = useState(false);
   const [componentKind, setComponentKind] = useState<SemanticKind>("processLoop");
   const [error, setError] = useState("");
+  const [fontLibrary, setFontLibrary] = useState<{ fonts: CompanyFont[]; fontCss: string } | null>(null);
+  const fontChangeVersion = useRef(0);
+  const [pendingFont, setPendingFont] = useState<FontSelection | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    setFontLibrary(null);
+    fetch(`/api/content/${projectId}/assets`, { signal: controller.signal }).then(async response => {
+      if (!response.ok) throw new Error("Could not load company fonts. Refresh to try again.");
+      const library = await response.json();
+      if (!controller.signal.aborted) setFontLibrary(library);
+    }).catch(cause => { if (!controller.signal.aborted) setError(String(cause.message)); });
+    return () => controller.abort();
+  }, [projectId]);
   const componentRenderTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const componentRenderVersion = useRef(0);
   const displayWidth = Math.min(650, initial.size.widthPx);
@@ -83,7 +99,7 @@ export function FreeformCanvasEditor({ projectId, companyId, initial, accent, bu
     const height = clamp(object.getScaledHeight() / displayHeight);
     if (meta.kind === "text") {
       const item = object as FabricObject & { text?: string; fontSize?: number; fontWeight?: string | number; fontStyle?: string; textAlign?: string; fill?: unknown };
-      return { id: meta.id, kind: "text", text: item.text?.trim() || " ", x, y, width: Math.max(0.01, width), fontSize: Math.max(0.008, Math.min(0.2, (item.fontSize ?? 25) * (object.scaleY ?? 1) / displayWidth)), color: color(item.fill), weight: item.fontWeight === "bold" || item.fontWeight === 700 ? "bold" : "regular", italic: item.fontStyle === "italic", align: item.textAlign === "center" || item.textAlign === "right" ? item.textAlign : "left" };
+      return { id: meta.id, kind: "text", text: item.text || " ", font: meta.font, fontId: meta.fontId, x, y, width: Math.max(0.01, width), fontSize: Math.max(0.008, Math.min(0.2, (item.fontSize ?? 25) * (object.scaleY ?? 1) / displayWidth)), color: color(item.fill), weight: item.fontWeight === "bold" || item.fontWeight === 700 ? "bold" : "regular", italic: item.fontStyle === "italic", align: item.textAlign === "center" || item.textAlign === "right" ? item.textAlign : "left" };
     }
     if (meta.kind === "image" && (meta.referenceId || meta.assetId)) {
       const item = object as FabricObject & { cropX?: number; cropY?: number; width: number; height: number };
@@ -103,9 +119,11 @@ export function FreeformCanvasEditor({ projectId, companyId, initial, accent, bu
   }
 
   useEffect(() => {
+    if (!fontLibrary) return;
     let cancelled = false;
     async function setup() {
       const fabric = await import("fabric");
+      await Promise.all(initial.elements.filter(e => e.kind === "text").map(e => loadEditorFont(e)));
       if (cancelled || !canvasEl.current) return;
       const board = new fabric.Canvas(canvasEl.current, { width: displayWidth, height: displayHeight, backgroundColor: initial.background, preserveObjectStacking: true, selection: false });
       canvas.current = board;
@@ -113,7 +131,7 @@ export function FreeformCanvasEditor({ projectId, companyId, initial, accent, bu
       for (const [index, element] of initial.elements.entries()) {
         const id = element.id ?? `element-${index + 1}`;
         const left = element.x * displayWidth; const top = element.y * displayHeight;
-        if (element.kind === "text") add(new fabric.Textbox(element.text, { left, top, width: element.width * displayWidth, fontSize: element.fontSize * displayWidth, fontFamily: "Arial", fontWeight: element.weight === "bold" ? "bold" : "normal", fontStyle: element.italic ? "italic" : "normal", textAlign: element.align, fill: element.color, objectCaching: false }), { id, kind: "text" });
+        if (element.kind === "text") add(new fabric.Textbox(element.text, { left, top, width: element.width * displayWidth, fontSize: element.fontSize * displayWidth, fontFamily: fontFamily(element) ?? "OlaBody", strokeWidth: 0, fontWeight: element.weight === "bold" ? "bold" : "normal", fontStyle: element.italic ? "italic" : "normal", textAlign: element.align, fill: element.color, objectCaching: false }), { id, kind: "text", font: element.font, fontId: element.fontId });
         if (element.kind === "rect") add(new fabric.Rect({ left, top, width: element.width * displayWidth, height: element.height * displayHeight, fill: element.fill, stroke: element.stroke, strokeWidth: element.strokeWidth * displayWidth }), { id, kind: "rect" });
         if (element.kind === "ellipse") add(new fabric.Ellipse({ left, top, rx: element.width * displayWidth / 2, ry: element.height * displayHeight / 2, fill: element.fill, stroke: element.stroke, strokeWidth: element.strokeWidth * displayWidth }), { id, kind: "ellipse" });
         if (element.kind === "line") add(new fabric.Line([left, top, element.x2 * displayWidth, element.y2 * displayHeight], { stroke: element.color, strokeWidth: element.strokeWidth * displayWidth }), { id, kind: "line" });
@@ -148,16 +166,17 @@ export function FreeformCanvasEditor({ projectId, companyId, initial, accent, bu
       board.on("text:changed", sync);
       board.requestRenderAll();
     }
-    void setup();
-    return () => { cancelled = true; componentRenderVersion.current += 1; if (componentRenderTimer.current) clearTimeout(componentRenderTimer.current); canvas.current?.dispose(); canvas.current = null; };
+    void setup().catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load design fonts."); });
+    return () => { cancelled = true; fontChangeVersion.current += 1; componentRenderVersion.current += 1; if (componentRenderTimer.current) clearTimeout(componentRenderTimer.current); canvas.current?.dispose(); canvas.current = null; };
   // The canvas is rebuilt only after a saved version arrives.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, initial, displayWidth, displayHeight]);
+  }, [projectId, initial, displayWidth, displayHeight, fontLibrary]);
 
   async function addText() {
     const fabric = await import("fabric"); const board = canvas.current; if (!board) return;
-    const object = new fabric.Textbox("Double-click to edit", { left: displayWidth * 0.15, top: displayHeight * 0.35, width: displayWidth * 0.7, fontSize: displayWidth * 0.05, fill: "#111111", fontFamily: "Arial" });
-    metadata.current.set(object, { id: crypto.randomUUID(), kind: "text" }); board.add(object); board.setActiveObject(object); board.requestRenderAll(); setSelected(object); sync();
+    await loadEditorFont({ font: "brand-body" });
+    const object = new fabric.Textbox("Double-click to edit", { left: displayWidth * 0.15, top: displayHeight * 0.35, width: displayWidth * 0.7, fontSize: displayWidth * 0.05, fill: "#111111", fontFamily: "OlaBody", strokeWidth: 0 });
+    metadata.current.set(object, { id: crypto.randomUUID(), kind: "text", font: "brand-body" }); board.add(object); board.setActiveObject(object); board.requestRenderAll(); setSelected(object); sync();
   }
   async function addImage(file: File) {
     const board = canvas.current; if (!board) return;
@@ -214,6 +233,19 @@ export function FreeformCanvasEditor({ projectId, companyId, initial, accent, bu
     }, 450);
   }
   function changeSelected(patch: Record<string, unknown>) { if (!selected) return; selected.set(patch); canvas.current?.requestRenderAll(); sync(); }
+  async function changeFont(selection: FontSelection) {
+    const object = selected;
+    if (!object || metadata.current.get(object)?.kind !== "text") return;
+    const version = ++fontChangeVersion.current;
+    setPendingFont(selection); setError("");
+    try {
+      const family = await loadEditorFont(selection);
+      if (version !== fontChangeVersion.current || !canvas.current?.getObjects().includes(object)) return;
+      metadata.current.set(object, { ...metadata.current.get(object)!, ...selection });
+      object.set({ fontFamily: family }); object.setCoords(); canvas.current.requestRenderAll(); sync();
+    } catch (cause) { if (version === fontChangeVersion.current) setError(cause instanceof Error ? cause.message : "Could not load font."); }
+    finally { if (version === fontChangeVersion.current) setPendingFont(null); }
+  }
   function cropSelected(field: "cropX" | "cropY" | "cropWidth" | "cropHeight", value: number) {
     if (!selected) return; const meta = metadata.current.get(selected); if (meta?.kind !== "image") return;
     const image = selected as FabricObject & { cropX: number; cropY: number; width: number; height: number };
@@ -233,6 +265,8 @@ export function FreeformCanvasEditor({ projectId, companyId, initial, accent, bu
   void revision;
 
   return <div className="freeform-editor">
+    <EditorFonts companyId={companyId} fonts={fontLibrary?.fonts ?? []}/>
+    <style>{fontLibrary?.fontCss ?? ""}</style>
     {!olaMode && <div className="freeform-toolbar">
       <IconButton variant="ghost" size="icon-sm" className="freeform-icon-action" type="button" label="Add text" title="Add text" onClick={() => void addText()}><TextIcon /></IconButton>
       <IconButton variant="ghost" size="icon-sm" className="freeform-icon-action" type="button" label="Add image" title="Add image" onClick={() => fileRef.current?.click()} disabled={uploading}><ImageIcon /></IconButton>
@@ -247,7 +281,7 @@ export function FreeformCanvasEditor({ projectId, companyId, initial, accent, bu
       <div className="freeform-stage"><canvas ref={canvasEl} /><p>{olaMode ? "Select an element to leave a comment for Ola." : "Click an element to adjust it. Double-click text to type. Drag corners to resize."}</p></div>
       {!olaMode && <aside className="freeform-properties">
         {!selected && <p>Select text or an image to edit it.</p>}
-        {selectedText && <><h3>Text</h3><label>Size <Input type="number" min="8" max="200" value={Math.round((selectedText.fontSize ?? 24) * (selectedText.scaleY ?? 1))} onChange={(event) => changeSelected({ fontSize: Number(event.target.value) / (selectedText.scaleY || 1) })} /></label><div className="freeform-type-controls"><Button variant="outline" type="button" aria-label="Bold" aria-pressed={selectedText.fontWeight === "bold"} onClick={() => changeSelected({ fontWeight: selectedText.fontWeight === "bold" ? "normal" : "bold" })}><strong>B</strong></Button><Button variant="outline" type="button" aria-label="Italic" aria-pressed={selectedText.fontStyle === "italic"} onClick={() => changeSelected({ fontStyle: selectedText.fontStyle === "italic" ? "normal" : "italic" })}><em>I</em></Button><input aria-label="Text color" type="color" value={color(selectedText.fill)} onChange={(event) => changeSelected({ fill: event.target.value })} /></div></>}
+        {selectedText && <><h3>Text</h3><label>Font<FontPicker fonts={fontLibrary?.fonts ?? []} value={pendingFont ?? selectedMeta ?? {}} onChange={selection => void changeFont(selection)} defaultLabel="Brand body"/></label><label>Size <Input type="number" min="8" max="200" value={Math.round((selectedText.fontSize ?? 24) * (selectedText.scaleY ?? 1))} onChange={(event) => changeSelected({ fontSize: Number(event.target.value) / (selectedText.scaleY || 1) })} /></label><div className="freeform-type-controls"><Button variant="outline" type="button" aria-label="Bold" aria-pressed={selectedText.fontWeight === "bold"} onClick={() => changeSelected({ fontWeight: selectedText.fontWeight === "bold" ? "normal" : "bold" })}><strong>B</strong></Button><Button variant="outline" type="button" aria-label="Italic" aria-pressed={selectedText.fontStyle === "italic"} onClick={() => changeSelected({ fontStyle: selectedText.fontStyle === "italic" ? "normal" : "italic" })}><em>I</em></Button><input aria-label="Text color" type="color" value={color(selectedText.fill)} onChange={(event) => changeSelected({ fill: event.target.value })} /></div></>}
         {selectedImage && <><h3>Crop image</h3>{(["cropX", "cropY", "cropWidth", "cropHeight"] as const).map((field) => { const source = field.endsWith("Width") || field === "cropX" ? selectedMeta?.sourceWidth || 1 : selectedMeta?.sourceHeight || 1; const current = field === "cropWidth" ? selectedImage.width : field === "cropHeight" ? selectedImage.height : selectedImage[field]; return <label key={field}>{({ cropX: "Left", cropY: "Top", cropWidth: "Width", cropHeight: "Height" } as const)[field]} <input type="range" min={field === "cropWidth" || field === "cropHeight" ? 5 : 0} max="100" value={Math.round(current / source * 100)} onChange={(event) => cropSelected(field, Number(event.target.value) / 100)} /></label>; })}<Button variant="outline" type="button" onClick={() => { cropSelected("cropX", 0); cropSelected("cropY", 0); cropSelected("cropWidth", 1); cropSelected("cropHeight", 1); }}>Reset crop</Button></>}
         {selectedComponent && <SemanticComponentFields component={selectedComponent} accent={accent} companyId={companyId} onChange={updateSelectedComponent} />}
         {selected && <Button variant="outline" type="button" className="freeform-delete" onClick={deleteSelected}>Delete element</Button>}
