@@ -379,7 +379,8 @@ export const SemanticComponentSchema = z.object({
     if (Math.abs(sum(sources) - sum(destinations)) > Math.max(1, sum(sources)) * 1e-8) issue("Flow source and destination totals must match.");
   }
   if (component.kind === "marketSizing" && (count !== 3 || component.items.some((item, index) => item.value < 0 || (index > 0 && item.value > component.items[index - 1].value)))) issue("Market sizing needs three nested, nonnegative values: total ≥ served ≥ obtainable.");
-  if (component.kind !== "pullQuote" && count < 2) context.addIssue({ code: "custom", path: ["items"], message: "This component needs at least two items." });
+  // A single actionable check is meaningful. Do not invent another item to enter the designer.
+  if (!["pullQuote", "checklist"].includes(component.kind) && count < 2) context.addIssue({ code: "custom", path: ["items"], message: "This component needs at least two items." });
   if (component.kind === "pullQuote" && count !== 1) context.addIssue({ code: "custom", path: ["items"], message: "Pull quotes need one attribution." });
   if (component.kind === "processLoop" && (count < 2 || count > 4)) context.addIssue({ code: "custom", path: ["items"], message: "Process loops need 2–4 steps." });
   if (component.kind === "decisionTree" && count !== 2) context.addIssue({ code: "custom", path: ["items"], message: "Decision trees need exactly two branches." });

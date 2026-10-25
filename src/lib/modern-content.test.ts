@@ -93,3 +93,13 @@ describe("versioned content exports", () => {
     expect(artifact.type === "article" && artifact.html).toContain("<p>Retry later.</p>");
   });
 });
+
+it('uses canonical supporting counts in visual review and excludes the exact CTA',async()=>{
+ const dir=await fixtureDir(),brand=fixtureBrand(dir,true);
+ const {composePage}=await import('./composition');
+ const page=composePage({title:'Make one practical check',body:'Pick one small check that matches your focused question and evidence you can access now.',cta:'Choose one useful next check.',visualContent:{kind:'checklist',items:[{label:'Evidence fit',detail:'Can you access it now?'}]}},{family:'modular-grid',intent:{goal:'Choose one accessible check',relationship:'statement',reason:'Keep the action separate from supporting copy.'},responsive:{version:1,balance:{version:1},readability:{version:1},arrangement:'stack'}});
+ const artifact=SimpleArtifactSchema.parse({type:'poster',headline:page.title,subline:page.body,cta:page.cta,visualContent:page.visualContent,composition:page.composition});await renderModernArtifact(artifact,brand,dir);
+ const review=await reviewModernArtifact(artifact,brand,1,async prompt=>{
+  const checks=JSON.parse(prompt.split('Deterministic supporting-copy checks: ')[1].split('. These counts')[0]);expect(checks).toEqual([{page:1,words:22,min:12,max:22}]);return JSON.stringify({scores:{clarity:4,usefulness:4,visualCraft:4,brandFit:4,editability:4},issues:[],summary:'Supporting fields fit the stated budget.'});
+ },'Write 12–22 useful supporting words per page.');expect(review.pass).toBe(true);
+});

@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { planArtDirection } from './art-direction';
+import { planArtDirection, artDirectionCompositionGuide } from './art-direction';
+import { BrandDesignSchema } from './brand-design';
 import { artifactPages, composePage, setCopyText, planArtifactCompositions } from './composition';
 import { SimpleArtifactSchema } from './simple-content';
 import type { ContentBrand } from './content-brand';
@@ -48,4 +49,22 @@ it('scopes craft repair choices to the selected direction and actual page, prese
  expect(schema.safeParse({...patch,patches:[{...patch.patches[0],target:'page-99'}]}).success).toBe(false);
  expect(schema.safeParse({...patch,patches:[{...patch.patches[0],responsive:{visual:{textFlow:'grouped'}}}]}).success).toBe(false);
  const changed=applyArtifactPatches(artifact,schema.parse(patch),'');expect(artifactPages(changed)[0].composition?.directionId).toBe('editorial');expect(contentForEvidence(changed)).toEqual(contentForEvidence(artifact));
+});
+
+it('gives the art director live research and no mandatory editorial or frame treatment',async()=>{
+ const visualResearch={summary:'Use contrasting scale to distinguish invitation from details.',layoutPatterns:['An image can carry the invitation.'],toneAndPacing:[],avoid:[],references:[{title:'Observed example',url:'https://example.org/reference',observedPattern:'Image dominance with a compact copy group.',usage:'reference-only' as const}]};
+ await planArtDirection({format:'poster',brief:'Invite readers to observe.',brand:{assets:[]} as unknown as ContentBrand,referenceNotes:[],visualResearch},async prompt=>{
+  expect(prompt).toContain(JSON.stringify(visualResearch));expect(prompt).toContain('No composition family');
+  expect(prompt).not.toContain('An inset frame can open');return JSON.stringify(direction);
+ },[]);
+ const guide=artDirectionCompositionGuide({...direction,assetRequests:[],directions:direction.directions.map(d=>({...d,assetRequestIds:[]}))});expect(guide).not.toContain('confident editorial interpretation');expect(guide).toContain('There is no family, recipe or decoration quota');
+ expect(BrandDesignSchema.parse({}).family).toBeUndefined();
+});
+it('allows three distinct ideas within the same layout family and retains chosen framing',()=>{
+ const artifact=SimpleArtifactSchema.parse({type:'poster',headline:'Look again',subline:'Notice the change.',artDirection:direction});
+ const candidates=direction.directions.map((d,i)=>({pages:[{family:'oversized-typography',directionId:d.id,intent:{goal:'Focus the message',relationship:'statement',reason:'The current brief calls for this hierarchy.'},responsive:{version:1,anchor:['start','center','end'][i],craft:{version:1,...(i===2?{rule:'inset',ruleSides:['top','left','bottom']}:{})}}}]}));
+ const result=planArtifactCompositions(artifact,{candidates},true);
+ expect(result.plans.candidates.map(c=>c.pages[0].family)).toEqual(Array(3).fill('oversized-typography'));
+ expect(result.plans.candidates[2].pages[0].responsive?.craft?.ruleSides).toEqual(['top','left','bottom']);
+ expect(result.plans.candidates[0].pages[0].responsive?.craft?.rule).toBeUndefined();
 });

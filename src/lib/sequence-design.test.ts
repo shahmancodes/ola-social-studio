@@ -23,7 +23,7 @@ describe('purposeful data consistency',()=>{
   expect(result.candidates).toHaveLength(2);
   expect(artifactPages(result.candidates[0]).every(page=>page.composition?.family==='diagram-led')).toBe(true);
   const narrative=fixture();if(narrative.type==='carousel')narrative.slides[5].role='close';
-  expect(()=>planArtifactCompositions(narrative,{candidates:[{pages:Array.from({length:6},()=>plan('diagram-led'))},{pages:Array.from({length:6},()=>plan('modular-grid'))}]},true)).toThrow('at least three');
+  expect(()=>planArtifactCompositions(narrative,{candidates:[{pages:Array.from({length:6},()=>plan('diagram-led'))},{pages:Array.from({length:6},()=>plan('modular-grid'))}]},true)).not.toThrow();
  });
  it('allows a numeric series repair to reduce family count while retaining every value and label',()=>{
   const artifact=fixture(),families=['diagram-led','modular-grid','oversized-typography','diagram-led','diagram-led','diagram-led'];
@@ -32,4 +32,14 @@ describe('purposeful data consistency',()=>{
   expect(new Set(artifactPages(repaired).map(page=>page.composition?.family)).size).toBe(2);
   expect(artifactPages(repaired).map(page=>page.semanticComponent)).toEqual(artifactPages(original).map(page=>page.semanticComponent));
  });
+});
+
+
+it.each([
+ ['three families',['oversized-typography','asymmetric-editorial','modular-grid']],
+ ['two families',['oversized-typography','asymmetric-editorial','asymmetric-editorial']],
+] as const)('allows %s in a three-page deck without restricting the available choices',(_label,families)=>{
+ const artifact=SimpleArtifactSchema.parse({type:'carousel',title:'A useful reading',caption:'',slides:[{title:'Start with the source',body:'Read the original material before deciding what it supports.',role:'hook'},{title:'Notice the limits',body:'Keep unanswered questions visible while checking the claim.',role:'explanation'},{title:'Ask a useful question',body:'Choose the next check that could change the answer.',role:'close'}]});
+ const result=planArtifactCompositions(artifact,{candidates:[{pages:families.map(plan)},{pages:['asymmetric-editorial','modular-grid','oversized-typography'].map(plan)}]},true);
+ expect(artifactPages(result.candidates[0]).map(p=>p.composition?.family)).toEqual(families);
 });

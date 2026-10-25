@@ -1,6 +1,7 @@
 import {realizeStatementFields} from './statement-fields';
 import {StructuredVisualSchema} from './structured-visual';
 import { textboxGuide } from './textbox-style';
+import { typographyGuide } from './design-typography';
 import { ArtDirectionSchema, SelectionReviewSchema, planArtDirection, artDirectionCompositionGuide } from './art-direction';
 import {repairSupportingBudgets} from "./copy-budget-repair";
 import {supportingCopyBudgetGuide} from "./supporting-copy-budget";
@@ -37,7 +38,7 @@ import { brandPrompt, contentBrand } from "./content-brand";
 import { renderModernArtifact, reviewModernArtifact } from "./modern-content";
 import { planInternetResearch } from "./internet-research-plan";
 import { planVisualReferences, researchVisualReferences, VisualReferenceResearchSchema } from "./visual-reference-research";
-import { applyArtifactPatches, artifactRepairSchema, enforceBriefScope, requiredCopyIssues, repairOutcomeMerit } from "./artifact-repair";
+import { applyArtifactPatches, artifactRepairSchema, artifactTypographySources, enforceBriefScope, requiredCopyIssues, repairOutcomeMerit } from "./artifact-repair";
 import { artifactReviewImages, selectRenderedCandidates } from "./rendered-candidates";
 import { VISUAL_LAYOUTS } from "./visual-layout-types";
 import { layoutRepairGuide, VisualFindingSchema } from "./composition-design";
@@ -162,7 +163,7 @@ async function projectReferenceContext(projectId: string) {
   if(lessons?.length)notes.push("Explicit human preferences (style only): "+JSON.stringify(lessons.map(l=>l.notes)));
   for (const reference of references.filter((r,i,a)=>a.findIndex(v=>v.disk_path===r.disk_path)===i)) {
     if (reference.media_type.startsWith("image/")) {
-      try { images.push(`data:image/jpeg;base64,${(await sharp(await fs.readFile(reference.disk_path)).resize({ width: 1400, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer()).toString("base64")}`); } catch { notes.push(`${reference.name}: image could not be decoded`); }
+      try { const image=`data:image/jpeg;base64,${(await sharp(await fs.readFile(reference.disk_path)).resize({ width: 1400, withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer()).toString("base64")}`; if(!images.includes(image))images.push(image); } catch { notes.push(`${reference.name}: image could not be decoded`); }
     } else if (reference.media_type.startsWith("text/")) notes.push(`${reference.name}: ${(await fs.readFile(reference.disk_path, "utf8")).slice(0, 10_000)}`);
     else notes.push(`${reference.name}: attached ${reference.media_type} document; contents not extracted automatically`);
   }
@@ -270,7 +271,7 @@ async function generateSimpleArtifactInternal(projectId: string) {
     ), (original, replacement) => recordWorkflowEvent(projectId, "agent", "source-replaced", "research", "Replaced an unreadable citation before copy review.", { original, replacement }));
   });
   const visualPlan = await checkpoints.step("visual-plan", async () => {
-    const plan = await planVisualReferences({ type: row.content_type, brief: row.brief, brand, answers, localReferences: references.names });
+    const plan = await planVisualReferences({ type: row.content_type, brief: row.brief, brand, answers, localReferences: references.names, referenceImages: references.images, referenceNotes: references.notes });
     recordWorkflowEvent(projectId, "agent", "visual-plan", "orchestrator", plan.needed ? `Visual reference research is needed: ${plan.reason}` : `Visual reference research is not needed: ${plan.reason}`, plan);
     return plan;
   });
@@ -294,7 +295,7 @@ async function generateSimpleArtifactInternal(projectId: string) {
   const parse = (raw: string) => JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, ""));
   const lessons=workflowEvents(projectId).findLast(e=>e.kind==='human-design-lessons')?.data;
   const artDirection = row.content_type==='article'?undefined:await checkpoints.step("art-direction-v2",async()=>{
-    const direction=await planArtDirection({format:row.content_type,brief:row.brief,brand:company,referenceNotes:references.notes,lessons,assetAcquisition:process.env.OLA_ASSET_ACQUISITION!=="disabled"&&externalArtworkAllowed(row.brief)},askModel,references.images);
+    const direction=await planArtDirection({format:row.content_type,brief:row.brief,brand:company,referenceNotes:references.notes,visualResearch:visualReferences,lessons,assetAcquisition:process.env.OLA_ASSET_ACQUISITION!=="disabled"&&externalArtworkAllowed(row.brief)},askModel,references.images);
     recordWorkflowEvent(projectId,"agent","art-direction",row.content_type,"Developed three visual ideas against the supplied brand references.",{direction,referenceCount:references.images.length,lessons});
     await fs.writeFile(path.join(companyStorageDir(row.company_id),'projects',projectId,'art-direction.json'),JSON.stringify(direction,null,2));
     return direction;
@@ -308,7 +309,7 @@ async function generateSimpleArtifactInternal(projectId: string) {
   company=contentBrand(row.company_id,getCompany(row.company_id)?.name??"Company",brand,row.brief,projectId);
   const artworkPreviews=await approvedArtworkPreviews(artwork);
   const designImages=[...references.images,...artworkPreviews.map(item=>item.image)];
-  const assetContext=`\nImage inputs: the first ${references.images.length} are STYLE references only; subsequent images are approved OUTPUT artwork in this order: ${JSON.stringify(artworkPreviews.map(({image:_,...item})=>item))}.\nActual asset acquisition results (only approved assetIds are available; failed requests must use the native/existing-asset fallback): ${JSON.stringify(artwork.map(({localPath:_,...item})=>item))}. Keep supplied images; new assets never replace a required supplied image. Use downloaded images only where they improve the idea, and bind the required attribution to each image page.`;
+  const assetContext=`\nImage inputs: the first ${references.images.length} are STYLE references only; subsequent images are approved OUTPUT artwork in this order: ${JSON.stringify(artworkPreviews.map(({image:_,...item})=>item))}.\nActual asset acquisition results (only approved assetIds are available; failed requests must use the native/existing-asset fallback): ${JSON.stringify(artwork.map(({localPath:_,acquisitionEvidence:_evidence,...item})=>item))}. Keep supplied images; new assets never replace a required supplied image. Use downloaded images only where they improve the idea, and bind the required attribution to each image page.`;
   context+=`\nImage inputs: first ${references.images.length} are brand STYLE references; remaining images are approved OUTPUT artwork in this order: ${JSON.stringify(artworkPreviews.map(({image:_,...item})=>item))}. Inspect their actual subjects, proportions and optical weight before choosing a representation or geometry.\nUpdated image shortlist: ${brandPrompt(company)}${assetContext}`;
   const representationInput = {creativeDirection:artDirection,type:row.content_type as "poster"|"story"|"post"|"carousel"|"presentation"|"article",brief:row.brief,count,brand:company,sources:researchSources,assetContext};
   const representation = await checkpoints.step("representation", async () => {
@@ -386,9 +387,9 @@ async function generateSimpleArtifactInternal(projectId: string) {
     if (copyIssues.length) throw new Error(copyIssues.join(" "));
     await fs.mkdir(path.join(companyStorageDir(row.company_id),'projects',projectId),{recursive:true});
     await fs.writeFile(path.join(companyStorageDir(row.company_id),'projects',projectId,'draft-copy.json'),JSON.stringify(artifact,null,2));
-    // Recheck failed reports made by the old, truncated evidence reader. Keep all upstream work.
+    // Recheck failed reports made before the acquired-image evidence handoff. Keep all upstream work.
     const previousReview = checkpoints.result<{ passed: boolean; evidenceVersion?: number }>("copy-review");
-    if (previousReview && !previousReview.passed && previousReview.evidenceVersion !== 2) {
+    if (previousReview && !previousReview.passed && previousReview.evidenceVersion !== 3) {
       for (const step of ["copy-review", "copy-repair", "repaired-copy-review"]) await checkpoints.invalidate(step);
       await checkpoints.recordFeedback("copy-repair", undefined);
     }
@@ -399,7 +400,7 @@ async function generateSimpleArtifactInternal(projectId: string) {
         await checkpoints.invalidate("research-source-access");
         throw new Error(`Evidence source check failed: ${report.issues.join(' ')}`);
       }
-      return { ...report, evidenceVersion: 2 };
+      return { ...report, evidenceVersion: 3 };
     });
     if (!approved.passed) {
       artifact = await checkpoints.step("copy-repair", async () => {
@@ -451,8 +452,8 @@ ${context}${renderFailures?`\nThe previous complete composition set failed ACTUA
             const resolved=id&&(company.assetAliases?.[id]??id);if(resolved&&!company.fonts?.some(font=>font.id===resolved))throw new Error(`Selected font ${id} is not in this company snapshot. Use one of these exact IDs: ${company.fonts?.map(font=>font.id).join(', ')}.`);
           }
           const planned = result.plans;
-          candidates = result.candidates.map((candidate,index)=>{ const parsed=SimpleArtifactSchema.parse(candidate); const issues=representationRealizationIssues(parsed,representation,"composed",row.brief);if(issues.length)throw new Error(`Candidate ${index+1}, ${issues[0].replace(/^Page /,'page ')}`);return parsed; });
-          recordWorkflowEvent(projectId, "agent", "composition-plan", row.content_type, "Planned distinct visual directions using the same approved copy.", {plans: planned, copySources: frozenPages.map(p=>({title:p.title,body:p.body,cta:p.cta})), planningPass});
+          candidates = result.candidates.map((candidate,index)=>{ const parsed=SimpleArtifactSchema.parse(enforceBriefScope(candidate,row.brief)); const issues=representationRealizationIssues(parsed,representation,"composed",row.brief);if(issues.length)throw new Error(`Candidate ${index+1}, ${issues[0].replace(/^Page /,'page ')}`);return parsed; });
+          recordWorkflowEvent(projectId, "agent", "composition-plan", row.content_type, "Planned distinct visual directions using the same approved copy.", {plans: planned, copySources: frozenPages.map(p=>({title:p.title,body:p.body,cta:p.cta})), planningPass, briefScope:{pageMarkersSuppressed:candidates.map(candidate=>artifactPages(candidate).flatMap((page,index)=>page.composition?.responsive?.pageMarker===false?[index+1]:[]))}});
           break;
         } catch (error) {
           planningError = error instanceof Error ? error.message : String(error);
@@ -553,7 +554,7 @@ async function runQualityLoop(projectId: string, row: NonNullable<ReturnType<typ
           let repairRejection = "";
           let rejectedPatch: unknown;
           for (let repairTry=0;repairTry<2;repairTry++) {
-            const repair = parse(await askModel(`Repair only the specific failed elements in these ACTUAL rendered pages. Return JSON matching this schema: ${JSON.stringify(z.toJSONSchema(artifactRepairSchema(artifact)))}. Targets: ${JSON.stringify(targets)}. Allowed layouts: ${VISUAL_LAYOUTS.join(", ")}. Preserve required quoted copy, page count, source assets and unrelated content. ${layoutRepairGuide()} ${textboxGuide()} Copy blocks reference the canonical fields. Do not replace component copy references with duplicate strings. Preserve the exact existing separator string, including the arrow character and spaces; changing connector styling never changes that source delimiter. Use normalized positions only for a concrete positioning fix. No full-artifact rewrite. Prior applied repairs: ${JSON.stringify(repairHistory.filter(item=>item.pass<pass))}. Compare these earlier changes with the current findings. If a defect survived the prior patch, change the mechanism that caused it; do not repeat an ineffective setting or rename the intent. A compositionPlan may change the geometry when local controls cannot meet the objective. Preserve the selected page directionId exactly or omit it to inherit; do not invent or rename an art direction to describe a repair. Current: ${JSON.stringify(artifact)}. Issues: ${JSON.stringify(repairReport.issues)}. Specific visual findings: ${JSON.stringify(repairReport.findings ?? [])}. ${context} ${repairRejection ? `Previous patch was rejected: ${repairRejection}. Rejected patch: ${JSON.stringify(rejectedPatch)}. Keep the current artifact intact and address that validation error.` : ""}`, await artifactReviewImages(artifact)));
+            const repair = parse(await askModel(`Repair only the specific failed elements in these ACTUAL rendered pages. Return JSON matching this schema: ${JSON.stringify(z.toJSONSchema(artifactRepairSchema(artifact)))}. Targets: ${JSON.stringify(targets)}. Allowed layouts: ${VISUAL_LAYOUTS.join(", ")}. Preserve required quoted copy, page count, source assets and unrelated content. ${layoutRepairGuide()} ${typographyGuide()} Exact typography source words (zero-based word indices): ${JSON.stringify(artifactTypographySources(artifact))}. Prefer emphasis:[{phrase:"exact words from this field",treatment:"bold"}] and breakAfterText:[{phrase:"exact phrase ending at the desired break"}] to avoid calculating indices. occurrence is one-based and is required only for repeated phrases. Phrase selectors match complete words including punctuation; they never rewrite copy. Only accent, bold and italic are valid phrase treatments; underline:true styles a whole field, not an emphasis span. Never overlap emphasis spans. Copy blocks reference the canonical fields. Do not replace component copy references with duplicate strings. Preserve the exact existing separator string, including the arrow character and spaces; changing connector styling never changes that source delimiter. Use normalized positions only for a concrete positioning fix. No full-artifact rewrite. Prior applied repairs: ${JSON.stringify(repairHistory.filter(item=>item.pass<pass))}. Compare these earlier changes with the current findings. If a defect survived the prior patch, change the mechanism that caused it; do not repeat an ineffective setting or rename the intent. A compositionPlan may change the geometry when local controls cannot meet the objective. Preserve the selected page directionId exactly or omit it to inherit; do not invent or rename an art direction to describe a repair. Current: ${JSON.stringify(artifact)}. Issues: ${JSON.stringify(repairReport.issues)}. Specific visual findings: ${JSON.stringify(repairReport.findings ?? [])}. ${context} ${repairRejection ? `Previous patch was rejected: ${repairRejection}. Rejected patch: ${JSON.stringify(rejectedPatch)}. Keep the current artifact intact and address that validation error.` : ""}`, await artifactReviewImages(artifact)));
             try {
               artifact = SimpleArtifactSchema.parse(enforceBriefScope(applyArtifactPatches(artifact, repair, row.brief), row.brief));
               repairHistory = [...repairHistory.filter(item=>item.pass!==pass), {pass,issues:repairReport.issues,patch:repair}];

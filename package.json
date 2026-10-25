@@ -52,6 +52,7 @@
     "cn": "^0.4.0",
     "commander": "15.0.0",
     "fabric": "^6.9.1",
+    "fontkit": "2.0.4",
     "ipaddr.js": "2.5.0",
     "jszip": "3.10.2",
     "lucide-react": "^1.56.0",
@@ -70,6 +71,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@types/fontkit": "2.0.9",
     "@types/node": "26.6.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",

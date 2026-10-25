@@ -68,7 +68,7 @@ export async function buildResponsiveScene(format: VisualFormat, page: VisualPag
   const addGroup = (id: string) => { const lane = lanes.get(id) ?? 'full'; const g: LayoutGroup = { id, lane, w: laneWidth(lane), h: 0, x: 0, y: 0 };
     if(c.recipe?.id==='penpot-event-card'&&id!=='artwork'){g.w-=40*unit;g.offsetX=lane==='left'?20*unit:lane==='right'?-20*unit:0;}
     if(c.recipe?.id==='tahta-lead'&&!structured&&id!=='artwork'){g.w*=id==='title'?.92:.82;g.offsetX=lane==='full'?-(frame.w-g.w)/2:0;}
-    if(balanced&&!craft&&!profile&&!hasVisual&&c.family==='asymmetric-editorial'&&id==='body'&&lane==='full'){
+    if(balanced&&!craft&&!profile&&!hasVisual&&c.family==='asymmetric-editorial'&&id==='body'&&lane==='full'&&c.typography?.body?.width===undefined){
       g.w*=.84;g.offsetX=(c.tuning.mirror?-1:1)*(frame.w-g.w)/2;
     }
     const style=c.typography?.[id as 'title'|'body'|'cta'|'credit'|'eyebrow'];
@@ -241,9 +241,9 @@ export async function buildResponsiveScene(format: VisualFormat, page: VisualPag
   }
   const imageFirst = c.family === 'image-led' && !c.tuning.mirror && !columns;
   scene.responsiveLayout = { version: 1, frame, config:r, gap, split: c.tuning.split, groups, order:structured?['eyebrow','title','body','artwork','cta','credit']:profile?[...profile.order]:imageFirst ? ['eyebrow', 'artwork', 'title', 'body', 'cta', 'credit'] : columns && hasVisual && c.family === 'oversized-typography' ? ['eyebrow', 'title', 'artwork', 'body', 'cta', 'credit'] : ['eyebrow', 'title', 'body', 'artwork', 'cta', 'credit'], placements: c.placements,...(c.recipe?{recipe:{...c.recipe,format,panelFill:brand.palette.alternate,panelInk:ink}}:{}) };
-  if(balanced&&total>1){
+  if(r.pageMarker!==false&&balanced&&total>1){
     elements.push(...pageMarker(index,total,width-pad-154*unit,format==='story'?316:format==='presentation'?60:pad+18,unit,ink,accent));
-  } else if (!balanced&&format === 'carousel') {
+  } else if (r.pageMarker!==false&&!balanced&&format === 'carousel') {
     elements.push({ kind: 'rect', id: 'progress', x: pad, y: height - 70, w: frame.w, h: 4, fill: brand.palette.alternate });
     elements.push({ kind: 'rect', x: pad + index * frame.w / total, y: height - 70, w: frame.w / total, h: 4, fill: accent });
   }

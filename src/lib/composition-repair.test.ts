@@ -24,11 +24,10 @@ it('rejects a source-incompatible page repair rather than inventing a diagram',a
  const {artifact,input}=fixture(),ask=vi.fn(async()=>JSON.stringify(plan('diagram-led','tahta-timeline')));
  await expect(repairCompositionCandidates(artifact,input,ask)).rejects.toThrow();expect(ask).toHaveBeenCalledTimes(2);
 });
-it('targets only candidate two when the first-page families collide',async()=>{
+it('does not force a different family when repairing a valid same-family alternative',async()=>{
  const {artifact,input}=fixture();input.candidates[0].pages[5]=plan('modular-grid');input.candidates[1].pages[0]=plan('oversized-typography');
- const ask=vi.fn(async()=>JSON.stringify(plan('asymmetric-editorial'))),result=await repairCompositionCandidates(artifact,input,ask);
- expect(result.plans.candidates[0].pages[0].family).toBe('oversized-typography');expect(result.plans.candidates[1].pages[0].family).toBe('asymmetric-editorial');expect(ask).toHaveBeenCalledTimes(1);
- expect(compositionRepairTarget('The two candidates must have different first-page composition families.')).toEqual({candidate:1,page:0});
+ const ask=vi.fn(),result=await repairCompositionCandidates(artifact,input,ask);
+ expect(result.plans.candidates.map(c=>c.pages[0].family)).toEqual(['oversized-typography','oversized-typography']);expect(ask).not.toHaveBeenCalled();
 });
 it('uses representation failures to repair a page without redrafting the deck',async()=>{
  const {artifact,input}=fixture();input.candidates[0].pages[5]=plan('modular-grid');
@@ -46,11 +45,11 @@ it('preserves an existing comparison instead of segmenting its supporting prose'
  expect(result.plans.candidates[0].pages[0].bodyMode).toBe('text');
  for(const c of result.candidates)expect(artifactPages(c)[0].semanticComponent?.items.map(i=>[i.label,i.detail])).toEqual(component.items.map(i=>[i.label,i.detail]));
 });
-it('repairs a missing recipe on the compatible alternative while keeping first-page families distinct',async()=>{
+it('never inserts a recipe to satisfy a legacy quota flag',async()=>{
  const artifact=SimpleArtifactSchema.parse({type:'poster',headline:'Make the choice clear.',subline:'Give the reader enough context.'});
- const input={candidates:[{pages:[plan('asymmetric-editorial')]},{pages:[plan('oversized-typography')]}]};
- const result=await repairCompositionCandidates(artifact,input,async()=>JSON.stringify(plan('oversized-typography','tahta-lead')),undefined,undefined,{requireRecipes:true});
- expect(result.plans.candidates[0].pages[0].family).toBe('asymmetric-editorial');expect(result.plans.candidates[1].pages[0].recipe?.id).toBe('tahta-lead');
+ const input={candidates:[{pages:[plan('asymmetric-editorial')]},{pages:[plan('oversized-typography')]}]},ask=vi.fn();
+ const result=await repairCompositionCandidates(artifact,input,ask,undefined,undefined,{requireRecipes:true});
+ expect(ask).not.toHaveBeenCalled();expect(result.plans.candidates.every(c=>!c.pages[0].recipe)).toBe(true);
 });
 it('accepts distinct custom alternatives without spending a repair call on a recipe quota',async()=>{
  const artifact=SimpleArtifactSchema.parse({type:'poster',headline:'Make the choice clear.',subline:'Give the reader enough context.'});
@@ -65,10 +64,10 @@ it('repairs a malformed page plan without discarding the valid deck',async()=>{
  expect(result.candidates).toHaveLength(2);expect(result.plans.candidates[0].pages[5].intent.goal).toBe('Explain the message');
  expect(compositionRepairTarget(JSON.stringify([{path:['candidates',0,'pages',5,'intent','goal']}]))).toEqual({candidate:0,page:5});
 });
-it('repairs insufficient carousel rhythm by introducing a source-compatible third family',async()=>{
+it('retains the agent’s two-family carousel without adding a third family',async()=>{
  const {artifact,input}=fixture();input.candidates[0].pages=input.candidates[0].pages.map((_,i)=>plan(i%2?'asymmetric-editorial':'oversized-typography',i===0?'tahta-lead':undefined));input.candidates[1].pages[5]=plan('modular-grid');
- const result=await repairCompositionCandidates(artifact,input,async()=>JSON.stringify(plan('modular-grid')));
- expect(new Set(result.plans.candidates[0].pages.map(p=>p.family)).size).toBe(3);expect(result.plans.candidates[0].pages[0].recipe?.id).toBe('tahta-lead');
+ const ask=vi.fn(),result=await repairCompositionCandidates(artifact,input,ask);
+ expect(new Set(result.plans.candidates[0].pages.map(p=>p.family)).size).toBe(2);expect(ask).not.toHaveBeenCalled();
 });
 it('rejects incompatible family/recipe pairs and corrects a malformed replacement within the page budget',async()=>{
  const artifact=SimpleArtifactSchema.parse({type:'poster',headline:'Make one thing useful.',subline:'Choose a clear purpose.'});

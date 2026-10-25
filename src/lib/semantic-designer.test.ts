@@ -56,3 +56,18 @@ describe('on-demand semantic components',()=>{
  });
  it('counts generated component copy in a per-page word budget',()=>{const a=SimpleArtifactSchema.parse({type:'poster',headline:'Headline excluded',subline:'One two three',semanticComponent:sample.semanticComponent});expect(supportingCopyBudgetIssues(a,'Write 2–4 useful supporting words per page.')[0]).toContain('supporting copy totals');});
 });
+
+it('accepts one genuine checklist action without inventing a second item or aborting the optional designer',async()=>{
+ const page={title:'Make one practical check',body:'',visualContent:{kind:'checklist' as const,items:[{label:'Evidence fit',detail:'Can you access it now?'}]}};
+ expect(designerComponent(page)?.items.map(i=>({label:i.label,detail:i.detail}))).toEqual(page.visualContent.items);
+ const artifact=SimpleArtifactSchema.parse({type:'poster',headline:page.title,subline:'',visualContent:page.visualContent}),ask=vi.fn(async()=>JSON.stringify({decisions:[{page:1,action:'reuse',relationship:'statement',reason:'One actionable check is clear in its existing native layout.'}]}));
+ const result=await applyOnDemandDesigner(artifact,{brand,brief:'Keep exactly this one check.',projectId:'test',images:[]},ask,()=>{});
+ expect(ask).toHaveBeenCalledTimes(1);expect(result).toEqual(artifact);expect(page.visualContent.items).toHaveLength(1);
+});
+it('preserves valid native copy that exceeds the optional catalogue detail limit',async()=>{
+ const detail='A'.repeat(145),page={title:'One useful check',body:'',visualContent:{kind:'checklist' as const,items:[{label:'Context',detail}]}};
+ const artifact=SimpleArtifactSchema.parse({type:'poster',headline:page.title,subline:'',visualContent:page.visualContent}),ask=vi.fn();
+ expect(designerComponent(page)).toBeUndefined();expect(await applyOnDemandDesigner(artifact,{brand,brief:'Keep the supplied wording.',projectId:'test',images:[]},ask,()=>{})).toEqual(artifact);expect(ask).not.toHaveBeenCalled();
+ expect(SemanticComponentSchema.safeParse({kind:'timeline',items:[{label:'Only stage'}]}).success).toBe(false);
+ expect(SemanticComponentSchema.safeParse({kind:'comparison',items:[{label:'Only alternative'}]}).success).toBe(false);
+});

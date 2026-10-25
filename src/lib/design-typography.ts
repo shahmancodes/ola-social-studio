@@ -23,6 +23,35 @@ export const DesignTypographySchema = z.object({
 }).strict();
 export type TextTypography = z.infer<typeof TextTypographySchema>;
 export type DesignTypography = z.infer<typeof DesignTypographySchema>;
+const PhraseReferenceSchema=z.object({phrase:z.string().trim().min(1).max(300),occurrence:z.number().int().min(1).max(100).optional()}).strict();
+const PhraseEmphasisSchema=PhraseReferenceSchema.extend({treatment:z.enum(['accent','bold','italic'])}).strict();
+/** Phrase selectors exist only at the repair boundary; saved typography retains canonical word ranges. */
+export const TextTypographyPatchSchema=TextTypographySchema.extend({
+  emphasis:z.array(z.union([TextTypographySchema.shape.emphasis.unwrap().element,PhraseEmphasisSchema])).max(4).optional(),
+  breakAfterText:z.array(PhraseReferenceSchema).max(8).optional(),
+}).strict();
+export const DesignTypographyPatchSchema=DesignTypographySchema.extend({
+  title:TextTypographyPatchSchema.optional(),body:TextTypographyPatchSchema.optional(),cta:TextTypographyPatchSchema.optional(),eyebrow:TextTypographyPatchSchema.optional(),credit:TextTypographyPatchSchema.optional(),
+}).strict();
+
+function phraseRange(text:string,reference:z.infer<typeof PhraseReferenceSchema>){
+  const words=text.match(/\S+/g)??[],phrase=reference.phrase.match(/\S+/g)??[];
+  const starts=words.flatMap((_,i)=>phrase.every((word,j)=>words[i+j]===word)?[i]:[]);
+  if(!starts.length)throw Error(`Typography phrase ${JSON.stringify(reference.phrase)} must match exact complete words, including punctuation, in its source field.`);
+  if(reference.occurrence===undefined&&starts.length!==1)throw Error(`Typography phrase ${JSON.stringify(reference.phrase)} occurs ${starts.length} times; specify its one-based occurrence.`);
+  const start=starts[(reference.occurrence??1)-1];
+  if(start===undefined)throw Error('Typography phrase occurrence does not exist in its source field.');
+  return{start,end:start+phrase.length};
+}
+
+export function resolveTypographyPatch(text:string,input:z.infer<typeof TextTypographyPatchSchema>):TextTypography {
+  const {breakAfterText,emphasis,...style}=input;
+  if(breakAfterText!==undefined&&style.breakAfter!==undefined)throw Error('Choose breakAfterText or numeric breakAfter, not both.');
+  const result=TextTypographySchema.parse({...style,...(breakAfterText!==undefined?{breakAfter:breakAfterText.map(reference=>phraseRange(text,reference).end)}:{}),...(emphasis!==undefined?{emphasis:emphasis.map(span=>'phrase'in span?{...phraseRange(text,span),treatment:span.treatment}:span)}:{})});
+  const issues=typographyIssues(text,result);if(issues.length)throw Error(issues.join(' '));return result;
+}
+
+export function typographyWordMap(text:string){return(text.match(/\S+/g)??[]).map((word,index)=>({index,word}));}
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 export function typographyIssues(text: string, style?: TextTypography) {
@@ -31,7 +60,7 @@ export function typographyIssues(text: string, style?: TextTypography) {
   if (style.breakAfter && (style.breakAfter.some(n => n >= count) || new Set(style.breakAfter).size !== style.breakAfter.length)) issues.push('Line breaks must address distinct word boundaries inside the source text.');
   if(style.maxLines&&1+(style.breakAfter?.length??0)>style.maxLines)issues.push('The line limit cannot be smaller than the explicitly requested phrase lines.');
   const spans = style.emphasis ?? [];
-  if (spans.some(s => s.end <= s.start || s.end > count)) issues.push('Emphasis must address an existing nonempty word range.');
+  if (spans.some(s => s.end <= s.start || s.end > count)) issues.push(`Emphasis must address an existing nonempty word range; this field has ${count} words. Indices are zero-based WORD positions, not characters.`);
   if (spans.some((a, i) => spans.slice(i + 1).some(b => a.start < b.end && b.start < a.end))) issues.push('Emphasis ranges cannot overlap.');
   return issues;
 }

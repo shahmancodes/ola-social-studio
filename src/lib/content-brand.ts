@@ -1,5 +1,5 @@
 import { selectBrandMemory } from "./brand-library";
-import { BrandDesignSchema, type BrandDesign } from "./brand-design";
+import { brandDesignForPlanning, type BrandDesign } from "./brand-design";
 import { db } from "./platform-db";
 import { companyStorageDir, type Brand } from "./platform";
 import path from 'node:path';
@@ -76,7 +76,7 @@ export function contentBrand(companyId: string, name: string, brand: Brand, brie
   const logo = rows.find((row) => (row.id === brand.logoAssetId || row.id === brand.wordmarkAssetId) && (!row.sourceUrl || Boolean(row.rightsNote && !/unverified|permission.required|unknown|not verified/i.test(row.rightsNote))));
   const fonts = (db().prepare("SELECT id,name,media_type AS mediaType,disk_path AS diskPath,usage_role AS role FROM assets WHERE company_id=? AND category='font'").all(companyId) as BrandAsset[]).filter(a => brand.fontAssetIds.includes(a.id));
   return {
-    projectId, assetAliases: brand.sourceAssetAliases, fonts, designSystem: BrandDesignSchema.parse(brand.designSystem ?? {}),
+    projectId, assetAliases: brand.sourceAssetAliases, fonts, designSystem: brandDesignForPlanning(brand.designSystem),
     memory: selectBrandMemory(brand.library, brief),
     companyId, name, audience: brand.audience, voice: brand.voice, description: brand.description,
     typography: brand.themeCard?.typography || "Readable, confident typography",

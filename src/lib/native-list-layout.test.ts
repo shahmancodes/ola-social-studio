@@ -73,3 +73,11 @@ describe('measured native narrative lists',()=>{
   expect(header).toMatchObject({color:'#182740',fontFamily:'Poppins'});expect(detail).toMatchObject({color:'#57514A',fontFamily:'Georgia'});
  });
 });
+
+it.each(['story','post','carousel','poster','presentation'] as const)('renders one checklist item as editable native text in %s without filler',async format=>{
+ const checklist=SemanticComponentSchema.parse({kind:'checklist',items:[{label:'Evidence fit',detail:'Can you access it now?'}]});
+ const page=composePage({title:'Make one practical check',body:'',semanticComponent:checklist},plan);
+ const scene=await buildVisualScene(format,page,brand);await scenePng(scene);
+ expect(sceneIssues(scene)).toEqual([]);expect(scene.elements.filter(e=>e.kind==='text'&&e.copySource==='semanticComponent.items.0.label')).toHaveLength(1);expect(scene.elements.filter(e=>e.kind==='text'&&e.copySource==='semanticComponent.items.0.detail')).toHaveLength(1);
+ expect(scene.elements.some(e=>e.id?.startsWith('semanticComponent.items.1'))).toBe(false);
+});

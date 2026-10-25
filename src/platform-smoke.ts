@@ -137,22 +137,21 @@ try {
   delete process.env.AI_GATEWAY_API_KEY;
   delete process.env.OPENROUTER_API_KEY;
   try {
-    const intakeId = intake.createIntakeRequest(companyA, alice, "Create something about home learning");
-    await intake.advanceIntake(intakeId);
-    assert.equal(database.projectRow(intakeId)?.status, "awaiting-input");
-    assert.match(workflow.workflowState(intakeId)?.question?.text ?? "", /Instagram Story, a carousel or a poster/i);
-    assert.match((await requestWorkspace.requestSnapshot(intakeId)).question?.text ?? "", /Instagram Story, a carousel or a poster/i);
-    intake.answerIntake(intakeId, "Instagram Story");
-    await intake.advanceIntake(intakeId);
-    assert.match(workflow.workflowState(intakeId)?.question?.text ?? "", /who.*for/i);
-    intake.answerIntake(intakeId, "Families supporting home learning");
-    await intake.advanceIntake(intakeId);
-    assert.match(workflow.workflowState(intakeId)?.question?.text ?? "", /tone/i);
-    intake.answerIntake(intakeId, "Friendly and practical");
+    // Clarification is model-generated, not a hard-coded offline questionnaire.
+    // The platform smoke test makes no provider calls; model interaction has its own tests.
+    const unresolvedId = intake.createIntakeRequest(companyA, alice, "Create something about home learning");
+    await assert.rejects(intake.advanceIntake(unresolvedId), /AI provider is required/);
+    assert.equal(workflow.workflowState(unresolvedId)?.question, null);
+    assert.deepEqual(workflow.workflowState(unresolvedId)?.answers, []);
+    const intakeBrief = "Create an Instagram Story about home learning. Audience: families supporting home learning. Tone: friendly and practical.";
+    const intakeId = intake.createIntakeRequest(companyA, alice, intakeBrief);
     await intake.advanceIntake(intakeId);
     assert.equal(database.projectRow(intakeId)?.content_type, "story");
+    assert.equal(database.projectRow(intakeId)?.brief, intakeBrief);
     assert.equal(workflow.workflowState(intakeId)?.specialist, "story");
-    assert.deepEqual(workflow.workflowEvents(intakeId).map((event) => event.kind), ["prompt", "request-created", "question", "answer", "question", "answer", "question", "answer", "route"]);
+    assert.equal(workflow.workflowState(intakeId)?.question, null);
+    assert.deepEqual(workflow.workflowState(intakeId)?.answers, []);
+    assert.deepEqual(workflow.workflowEvents(intakeId).map((event) => event.kind), ["prompt", "request-created", "creative-context", "route"]);
     const comingSoonId = intake.createIntakeRequest(companyA, alice, "Write an article about revision techniques");
     await intake.advanceIntake(comingSoonId);
     assert.equal(database.projectRow(comingSoonId)?.status, "coming-soon");

@@ -1,4 +1,4 @@
-// Three explicitly approved fresh pipeline tests; saved inputs and baselines stay read-only.
+// Authorized isolated live pipeline evaluations; saved inputs and baselines stay read-only.
 // Prepare: node --import tsx scripts/ola-professional-study.mjs --prepare
 // Run once: node --import tsx scripts/ola-professional-study.mjs --run <absolute-study-directory>
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ const dir=args.includes('--prepare')?path.join(lab,'professional-study',crypto.r
 if(!dir.startsWith(path.join(lab,'professional-study')+path.sep))throw Error('Use an isolated professional-study directory.');
 const runtime=path.join(dir,'runtime'),manifestFile=path.join(dir,'manifest.json');
 const write=value=>fs.writeFileSync(manifestFile,JSON.stringify(value,null,2)+'\n');
-Object.assign(process.env,{OLA_ROOT_DIR:root,COMPARISON_DATA_DIR:runtime,COMPARISON_SOURCE_DATA_DIR:process.env.OLA_STUDY_SOURCE_DATA_DIR??path.join(root,'.data'),OLA_DATA_DIR:path.join(runtime,'ola'),OLA_DISABLE_MESSAGING:'1',OLA_ASSET_ACQUISITION:'disabled'});
+Object.assign(process.env,{OLA_ROOT_DIR:root,COMPARISON_DATA_DIR:runtime,COMPARISON_SOURCE_DATA_DIR:process.env.OLA_STUDY_SOURCE_DATA_DIR??path.join(root,'.data'),OLA_DATA_DIR:path.join(runtime,'ola'),OLA_DISABLE_MESSAGING:'1',OLA_ASSET_ACQUISITION:process.env.OLA_STUDY_ASSET_ACQUISITION==='enabled'?'enabled':'disabled'});
 const {insertCase,getCase,getAttempt,saveAttempt,labDb,fingerprint}=await import('../src/comparison/store.ts');
 const executionFingerprint=()=>process.env.OLA_STUDY_FROZEN_SOURCE==='1'?'snapshot/'+fingerprint().split('/').at(-1):fingerprint();
 if(args.includes('--prepare')){

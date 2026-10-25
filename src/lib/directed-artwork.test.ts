@@ -14,7 +14,7 @@ const request={id:'moon',subject:'Lunar surface photograph',purpose:'Help the re
 const direction=ArtDirectionSchema.parse({version:1,referencePrinciples:[],assetRequests:[request],directions:['photo','editorial','type'].map(id=>({id,name:id+' idea',idea:'A concrete visual idea about observation',attention:'Start with a clear visual focus',hierarchy:'Keep title and support distinct',rhythm:'Vary visual weight across the sequence',assetStrategy:'Use the commissioned image if approved',assetRequestIds:['moon']}))});
 const input=()=>({projectId:'project',companyId:'company',brief:'A story about observation. Permit reusable images and credits.',brand:BrandSchema.parse({}),type:'story',direction:structuredClone(direction),available:[]});
 const accepted={approved:true,rightsVerified:true,sourceMatches:true,reason:'The actual image matches the source and its public-domain terms.'};
-const deps=()=>({research:vi.fn(async(_input:{feedback?:string})=>[item]),reopen:vi.fn(async(url:string)=>({url,text:'A specific source identifies this lunar image as public domain.',readLimitReached:false})),register:vi.fn(async()=> 'approved-id')});
+const deps=()=>({research:vi.fn(async(_input:{feedback?:string})=>[item]),reopen:vi.fn(async(url:string)=>({url,text:'A specific source identifies this lunar image as public domain.',readLimitReached:false})),register:vi.fn(async(_companyId:string,_projectId:string,_item:Artwork)=> 'approved-id')});
 beforeEach(async()=>{directory=await fs.mkdtemp(path.join(os.tmpdir(),'ola-directed-assets-'));const file=path.join(directory,'asset.png');await fs.writeFile(file,Buffer.from('fixture-image'));item={title:'Lunar surface',sourcePageUrl:'https://example.org/image',assetUrl:'https://example.org/image.png',rightsUrl:'https://example.org/rights',rights:'Public domain',attribution:'Image: Example',reason:'A real surface to observe',use:true,status:'downloaded',localPath:file};vi.stubEnv('OLA_ASSET_ACQUISITION','auto');});
 afterEach(async()=>{vi.unstubAllEnvs();await fs.rm(directory,{recursive:true,force:true});});
 it('passes request, actual pixels and independently reopened source evidence through approval before registration',async()=>{const d=deps(),ask=vi.fn(async(_prompt:string,_images?:string[])=>JSON.stringify(accepted));const result=await acquireDirectedArtwork(input(),ask,d);expect(d.research).toHaveBeenCalledWith(expect.objectContaining({request}));expect(ask.mock.calls[0][0]).toContain('specific source');expect(ask.mock.calls[0][1]![0]).toMatch(/^data:image\/png;base64,/);expect(d.register).toHaveBeenCalledTimes(1);expect(approvedArtwork(result[0])).toBe(true);});
@@ -44,4 +44,18 @@ it('hands planners only approved image pixels and actual aspect ratios',async()=
  await fs.writeFile(item.localPath!,await sharp({create:{width:600,height:300,channels:3,background:'green'}}).png().toBuffer());
  const previews=await approvedArtworkPreviews([{...item,assetId:'approved-id',review:accepted},{...item,use:false}]);
  expect(previews).toHaveLength(1);expect(previews[0]).toMatchObject({assetId:'approved-id',width:600,height:300});expect(previews[0].image).toMatch(/^data:image\/jpeg;base64,/);
+});
+
+it('stores the independently checked excerpts bound to the actual bytes and final corrected credit',async()=>{
+ const d=deps(),attribution='Image: Example — https://example.org/rights';
+ const result=await acquireDirectedArtwork(input(),async()=>JSON.stringify({...accepted,attribution}),d);
+ expect(result[0].attribution).toBe(attribution);expect(result[0].acquisitionEvidence).toMatchObject({version:1,sha256:result[0].sha256,sourcePageUrl:item.sourcePageUrl,assetUrl:item.assetUrl,rightsUrl:item.rightsUrl,attribution});
+ expect(result[0].acquisitionEvidence?.sources).toHaveLength(2);expect(d.register.mock.calls[0][2].attribution).toBe(attribution);
+});
+it('does not let a corrected credit bypass exact-copy restrictions',async()=>{
+ const d=deps(),result=await acquireDirectedArtwork({...input(),brief:'Headline: "Observe." No extra copy.'},async()=>JSON.stringify({...accepted,attribution:'New photographer credit'}),d);
+ expect(result[0].error).toContain('attribution');expect(d.register).not.toHaveBeenCalled();
+});
+it('rejects a changed download before asking the independent reviewer',async()=>{
+ item.sha256='0'.repeat(64);const d=deps(),ask=vi.fn();const result=await acquireDirectedArtwork(input(),ask,d);expect(result[0].error).toContain('bytes changed');expect(ask).not.toHaveBeenCalled();expect(d.register).not.toHaveBeenCalled();
 });

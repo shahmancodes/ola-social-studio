@@ -14,7 +14,10 @@ export function designerComponent(page:CopyPage){
  if(page.visualContent.kind==='example')return undefined; // Native examples have no prompt/answer contract to convert.
  if(page.visualContent.kind==='comparison')return undefined; // Native alternatives have no paired-row column-title contract.
  const kinds={process:'timeline',comparison:'comparison',checklist:'checklist',example:'annotatedExample'} as const;
- return SemanticComponentSchema.parse({kind:kinds[page.visualContent.kind],items:page.visualContent.items});
+ // Native fields have their own valid limits (for example, 150-character details).
+ // An optional catalogue conversion must not reject or shorten valid source copy.
+ const compatible=SemanticComponentSchema.safeParse({kind:kinds[page.visualContent.kind],items:page.visualContent.items});
+ return compatible.success?compatible.data:undefined;
 }
 
 export async function designSemanticCandidate(input:{page:CopyPage;brand:ContentBrand;reason:string;relationship:string;projectId?:string;pageNumber?:number;attemptId?:string;caseId?:string;images?:string[]},ask:Ask,record?:(data:unknown)=>void){

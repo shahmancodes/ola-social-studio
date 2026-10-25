@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { BrandSchema } from "./platform";
 import { shortlistBrandAssets } from "./content-brand";
+import { brandDesignForPlanning } from './brand-design';
+
+it('does not pass the legacy editorial default as brand evidence, preserving explicit identity and notes',()=>{
+  const notes=['Use an editorial treatment for the annual report when the brief asks for one.'];
+  const design=brandDesignForPlanning({family:'editorial',headingFontName:'Brand Heading',notes});
+  expect(design.family).toBeUndefined();expect(design.headingFontName).toBe('Brand Heading');expect(design.notes).toEqual(notes);
+});
 
 describe("company asset shortlist", () => {
   it("puts brief-relevant artwork ahead of generic decoration and excludes logos", () => {

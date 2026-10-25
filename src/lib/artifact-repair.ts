@@ -1,19 +1,19 @@
+import {pageMarkersAllowed} from './page-marker';
 import {StructuredVisualSchema} from './structured-visual';
 import { mergeTextboxStyle } from './textbox-style';
 import {supportingCopyBudgetIssues} from "./supporting-copy-budget";
 import { z } from 'zod';
 import { isDeepStrictEqual } from 'node:util';
-import { isConsistentDataSequence } from './sequence-design';
 import type { SimpleArtifact } from './simple-content';
 import { CraftPatchSchema, LayoutActionSchema, ResponsiveLayoutSchema, ResponsivePatchSchema } from './composition-design';
-import { DesignTypographySchema } from './design-typography';
+import { DesignTypographyPatchSchema, TextTypographySchema, resolveTypographyPatch, typographyWordMap } from './design-typography';
 import { VISUAL_LAYOUTS } from './visual-layout-types';
 import { SemanticComponentSchema, type SlideSpec } from './schemas';
 import {representationCopyPolicy,suppliedCopyIssues} from './content-representation';
 import {suppliedPairs} from './supplied-pairs';
 import { CompositionPlanSchema, composePage, artifactPages, withArtifactPages, artifactCompositionIssues, resolvedComponent, resolvedVisualContent, editPageComponent, compositionIssues, pageCompositionCapabilities } from './composition';
 const override=z.object({x:z.number().min(0).max(1).optional(),y:z.number().min(0).max(1).optional(),width:z.number().min(.05).max(1).optional(),height:z.number().min(.03).max(1).optional(),fontSize:z.number().min(24).max(150).optional(),color:z.string().regex(/^#[\da-f]{6}$/i).optional()}).strict();
-export const RepairSchema=z.object({patches:z.array(z.object({target:z.string(),reason:z.string().max(800).optional(),typography:DesignTypographySchema.optional(),craft:CraftPatchSchema.optional(),responsive:ResponsivePatchSchema.optional(),resetLayoutActions:z.literal(true).optional(),layoutActions:z.array(LayoutActionSchema).min(1).max(8).optional(),compositionPlan:CompositionPlanSchema.optional(),semanticComponent:SemanticComponentSchema.nullable().optional(),visualContent:StructuredVisualSchema.optional(),layout:z.enum(VISUAL_LAYOUTS).optional(),title:z.string().max(90).optional(),body:z.string().max(300).optional(),cta:z.string().max(60).optional(),visualOverrides:z.object({background:z.string().regex(/^#[\da-f]{6}$/i).optional(),title:override.optional(),body:override.optional(),cta:override.optional(),artwork:override.optional()}).strict().optional()}).strict()).max(12),reason:z.string().max(800)}).strict();
+export const RepairSchema=z.object({patches:z.array(z.object({target:z.string(),reason:z.string().max(800).optional(),typography:DesignTypographyPatchSchema.optional(),craft:CraftPatchSchema.optional(),responsive:ResponsivePatchSchema.optional(),resetLayoutActions:z.literal(true).optional(),layoutActions:z.array(LayoutActionSchema).min(1).max(8).optional(),compositionPlan:CompositionPlanSchema.optional(),semanticComponent:SemanticComponentSchema.nullable().optional(),visualContent:StructuredVisualSchema.optional(),layout:z.enum(VISUAL_LAYOUTS).optional(),title:z.string().max(90).optional(),body:z.string().max(300).optional(),cta:z.string().max(60).optional(),visualOverrides:z.object({background:z.string().regex(/^#[\da-f]{6}$/i).optional(),title:override.optional(),body:override.optional(),cta:override.optional(),artwork:override.optional()}).strict().optional()}).strict()).max(12),reason:z.string().max(800)}).strict();
 
 /** Offer only real page targets and preserve selected direction identity during AI craft repairs. */
 export function artifactRepairSchema(artifact:SimpleArtifact){
@@ -31,6 +31,12 @@ export function artifactRepairSchema(artifact:SimpleArtifact){
  });
  const patch=patches.length===1?patches[0]:z.union(patches);
  return RepairSchema.extend({patches:z.array(patch).max(12)});
+}
+
+/** Zero-based word evidence for numeric controls; exact-phrase patches avoid index arithmetic. */
+export function artifactTypographySources(artifact:SimpleArtifact){
+ const targets=artifact.type==='carousel'||artifact.type==='presentation'?artifact.slides.map(s=>s.id):['page-1'];
+ return artifactPages(artifact).map((page,index)=>({target:targets[index],fields:Object.fromEntries(['title','body','cta','eyebrow','credit'].flatMap(role=>{const text=page[role as 'title'|'body'|'cta'|'eyebrow'|'credit'];return text?[ [role,typographyWordMap(text)] ]:[];}))}));
 }
 
 export function applyArtifactPatches(artifact:SimpleArtifact, input:unknown, brief:string):SimpleArtifact {
@@ -118,12 +124,11 @@ export function applyArtifactPatches(artifact:SimpleArtifact, input:unknown, bri
       }
       pages[i] = {...pages[i],composition:{...composed,responsive:ResponsiveLayoutSchema.parse(responsive)}};
     }
-    if(patch.typography){const current=pages[i].composition!;const typography={...current.typography};for(const role of Object.keys(patch.typography) as Array<keyof typeof typography>){const update=patch.typography[role];typography[role]={...typography[role],...update,...(update?.box!==undefined?{box:mergeTextboxStyle(typography[role]?.box,update.box)}:{})};}pages[i].composition={...current,typography};}
+    if(patch.typography){const current=pages[i].composition!;const typography={...current.typography};for(const role of Object.keys(patch.typography) as Array<keyof typeof typography>){const raw=patch.typography[role];if(!raw)continue;const update=['title','body','cta','eyebrow','credit'].includes(role)?resolveTypographyPatch(String(pages[i][role as 'title'|'body'|'cta'|'eyebrow'|'credit']??''),raw):TextTypographySchema.parse(raw);typography[role]={...typography[role],...update,...(update.box!==undefined?{box:mergeTextboxStyle(typography[role]?.box,update.box)}:{})};}pages[i].composition={...current,typography};}
     if(patch.craft){const c=pages[i].composition!;if(!c.responsive)throw Error('Craft controls require a responsive composition.');const craft=ResponsiveLayoutSchema.shape.craft.unwrap().parse({version:1,...c.responsive.craft,...patch.craft});pages[i].composition={...c,responsive:{...c.responsive,craft}};}
     const issues=compositionIssues(pages[i]);if(issues.length)throw new Error(issues.join(' '));
   }
   const result=withArtifactPages(next,pages);
-  if(artifact.type==='carousel'&&result.type==='carousel'&&!isConsistentDataSequence(result.slides)&&artifact.slides.length>=4&&new Set(artifact.slides.map(p=>p.composition?.family).filter(Boolean)).size>=3&&new Set(result.slides.map(p=>p.composition?.family).filter(Boolean)).size<3)throw new Error('Repair would collapse the carousel to fewer than three composition families; preserve its visual rhythm.');
   const issues=requiredCopyIssues(result,brief);if(issues.length)throw new Error(issues.join(' '));
   if (isDeepStrictEqual(repairDesignState(artifact), repairDesignState(result))) throw new Error('Repair makes no design change. Change the actual typography, craft, geometry or approved content needed to resolve the reported defect; changing only intent or direction labels is insufficient.');
   return result;
@@ -167,7 +172,10 @@ export function requiredCopyIssues(artifact:SimpleArtifact,brief:string){
 
 /** Exact-copy briefs cannot acquire extra diagram labels during generation or repair. */
 export function enforceBriefScope(artifact:SimpleArtifact,brief:string):SimpleArtifact {
-  const clean=structuredClone(artifact);
+  let clean=structuredClone(artifact);
+  if((clean.type==='carousel'||clean.type==='presentation')&&!pageMarkersAllowed(brief)){
+    clean=withArtifactPages(clean,artifactPages(clean).map(page=>page.composition?.responsive?{...page,composition:{...page.composition,responsive:{...page.composition.responsive,pageMarker:false}}}:page));
+  }
   if(representationCopyPolicy(brief).sentenceOnly || /avoid extra text|no extra (?:text|copy)/i.test(brief)) {
     if(clean.type==='story'||clean.type==='post'||clean.type==='poster'){if(!clean.composition){delete clean.visualContent;delete clean.semanticComponent;delete clean.eyebrow;}}
     if(clean.type==='carousel')for(const slide of clean.slides){if(!slide.composition){delete slide.visualContent;delete slide.semanticComponent;delete slide.eyebrow;}}

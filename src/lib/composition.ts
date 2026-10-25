@@ -1,9 +1,9 @@
 import {semanticDesignIssues,componentSources} from "./semantic-design";
 import { z } from "zod";
-import { DesignTypographySchema, typographyGuide, typographyIssues } from './design-typography';
+import { DesignTypographySchema, typographyGuide, typographyIssues, typographyWordMap } from './design-typography';
 import { SemanticComponentSchema } from "./schemas";
 import { ResponsiveLayoutSchema, responsiveLayoutGuide } from "./composition-design";
-import { isConsistentDataSequence } from './sequence-design';
+import { DESIGN_CHOICE_STANDARD } from './design-choice';
 import type { SimpleArtifact } from "./simple-content";
 import { DESIGN_RECIPES, DesignRecipeSchema, recipeIssues, recipeGuide, recipeProfile } from './design-recipes';
 
@@ -253,7 +253,7 @@ export function withArtifactPages(artifact: SimpleArtifact, pages: CopyPage[]): 
 }
 export function artifactCompositionIssues(artifact: SimpleArtifact) { return artifactPages(artifact).flatMap((p, i) => compositionIssues(p).map(issue => `Page ${i + 1}: ${issue}`)); }
 
-export function planArtifactCompositions(artifact: SimpleArtifact, input: unknown, requireResponsive = false, requireRecipes = false) {
+export function planArtifactCompositions(artifact: SimpleArtifact, input: unknown, requireResponsive = false, _legacyRequireRecipes = false) {
   if (!['poster','story','carousel','post','presentation'].includes(artifact.type)) throw new Error('Composition planning is only enabled for active visual formats.');
   const plans=CompositionCandidatesSchema.parse(input), pages=artifactPages(artifact);
   if(artifact.artDirection){
@@ -261,30 +261,13 @@ export function planArtifactCompositions(artifact: SimpleArtifact, input: unknow
     plans.candidates.forEach((candidate,i)=>candidate.pages.forEach((page,j)=>{page.directionId??=artifact.artDirection!.directions[i].id;if(page.directionId!==artifact.artDirection!.directions[i].id)throw Error(`Candidate ${i+1}, page ${j+1}: preserve directionId ${artifact.artDirection!.directions[i].id}.`);}));
   }
   if(requireResponsive&&plans.candidates.some(c=>c.pages.some(p=>!p.responsive)))throw new Error('Every new composition must include responsive layout and visual intent settings.');
-  if(requireRecipes&&!pages.some(p=>p.semanticDesign)&&!plans.candidates.some(c=>c.pages.some(p=>p.recipe))){
-    for(const[index]of plans.candidates.entries()){
-      const page=pages.findIndex((p,i)=>pageCompositionCapabilities(p).recipes.some(id=>i>0||DESIGN_RECIPES.find(r=>r.id===id)?.family!==plans.candidates.find((_,other)=>other!==index)?.pages[0]?.family));
-      if(page>=0)throw new Error(`Candidate ${index+1}, page ${page+1}: Use an approved compatible recipe in at least one alternative. Custom compositions may supply the remaining narrative rhythm.`);
-    }
-    throw new Error('No approved recipe fits the supplied source content and distinct alternatives.');
-  }
-  const duplicate=plans.candidates.findIndex((c,i)=>plans.candidates.slice(0,i).some(other=>other.pages[0]?.family===c.pages[0]?.family));
-  if(duplicate>=0)throw new Error(`Candidate ${duplicate+1}, page 1: The two candidates must have different first-page composition families; each additional candidate must also be distinct.`);
+  // Compare actual plan choices, ignoring agent descriptions and direction identities.
+  // A family label may repeat; spending candidates on identical plans provides no alternative.
+  const geometryKey = (candidate: typeof plans.candidates[number]) => JSON.stringify(candidate.pages.map(({directionId: _id, intent: _intent, ...geometry}) => geometry));
+  const duplicate=plans.candidates.findIndex((candidate,index)=>plans.candidates.slice(0,index).some(other=>geometryKey(other)===geometryKey(candidate)));
+  if(duplicate>=0)throw new Error(`Candidate ${duplicate+1}, page 1: Alternatives need different composition plans, not only different direction names or intent descriptions. The same family is allowed.`);
   const candidates=plans.candidates.map(candidate=>{
-    const recipeFamilies=new Set(pages.flatMap(p=>pageCompositionCapabilities(p).recipes.map(id=>DESIGN_RECIPES.find(r=>r.id===id)!.family)));
-    // A single-page source with only one compatible recipe family needs a custom alternative
-    // to retain structural contrast. Requiring that recipe in both would be unsatisfiable.
-    if(requireRecipes&&(pages.length>1||recipeFamilies.size>=plans.candidates.length&&pages.some(p=>p.assetId||p.semanticComponent||p.visualContent||/ → |\n/.test(p.body)))&&!candidate.pages.some(p=>p.recipe)){
-      const page=Math.max(0,pages.findIndex((p,i)=>i>0&&pageCompositionCapabilities(p).recipes.length));
-      throw new Error(`Candidate ${plans.candidates.indexOf(candidate)+1}, page ${page+1}: Each alternative for this multi-page or visual brief must feature an approved compatible recipe; use custom families on other pages for rhythm.`);
-    }
     if(candidate.pages.length!==pages.length)throw new Error('Composition planning changed the page count.');
-    if(pages.length>=4&&!isConsistentDataSequence(artifact.type==='carousel'||artifact.type==='presentation'?artifact.slides:[])&&new Set(candidate.pages.map(p=>p.family)).size<3){
-      const used=new Set(candidate.pages.map(p=>p.family));
-      const page=pages.findIndex((p,i)=>i>0&&!candidate.pages[i].recipe&&candidate.pages.filter(other=>other.family===candidate.pages[i].family).length>1&&pageCompositionCapabilities(p).families.some(f=>!used.has(f)));
-      if(page>=0)throw new Error(`Candidate ${plans.candidates.indexOf(candidate)+1}, page ${page+1}: This carousel needs at least three purposeful composition families.`);
-      throw new Error('This carousel needs at least three purposeful composition families; no source-compatible page can introduce another family.');
-    }
     return withArtifactPages(structuredClone(artifact),pages.map((page,i)=>{try{const plan=candidate.pages[i];if(requireResponsive&&plan.responsive){plan.responsive.balance={version:1};plan.responsive.readability={version:1};}return composePage(page,plan);}catch(error){throw new Error(`Candidate ${plans.candidates.indexOf(candidate)+1}, page ${i+1}: ${error instanceof Error?error.message:String(error)}`);}}));
   });
   return {plans,candidates};
@@ -319,7 +302,7 @@ export function syncArtifactComposition(before: SimpleArtifact, after: SimpleArt
 
 export function compositionGuide(options:{allowTextFlow?:boolean}={}) {
   const schema=options.allowTextFlow===false?CompositionPlanSchema.extend({responsive:ResponsiveLayoutSchema.extend({visual:ResponsiveLayoutSchema.shape.visual.unwrap().extend({textFlow:z.never().optional()}).default({treatment:'plain',direction:'auto',annotations:[]})}).optional()}):CompositionPlanSchema;
-  return `Plan communication BEFORE geometry. Families: oversized-typography (one bold message), asymmetric-editorial (offset columns and deliberate whitespace), image-led (dominant supplied image), diagram-led (native semantic relationship), comparison (two explicit groups), modular-grid (related modules). All adapt to the requested canvas dimensions, including Story safe areas, A4 Poster, portrait Carousel/Post and landscape Presentation. ${responsiveLayoutGuide()} ${typographyGuide()} ${recipeGuide()} Use responsive.visual.textFlow ONLY when planningCapabilities.textFlowModes contains that value; otherwise omit it entirely. This control requires a designed semantic component, not plain text or a preset diagram. Use only actual available assets/components. No fake facts or new diagram labels. bodyMode text preserves the supporting text; sequence/comparison/grid can redistribute existing copy ONLY when it contains a literal separator (supply the exact separator). Sequence uses a native connected timeline. Do not split a sentence into unrelated fragments to force a diagram. Both candidates MUST use the SAME frozen copy, selected assets and page count, with different composition families on the first page; plan carousel rhythm together. For narrative candidates with four or more pages, use at least THREE distinct allowed composition families across the sequence. A series consisting entirely of the same numeric component kind and the same narrative role may retain one coherent family so its data remains comparable. Do not force unrelated structures onto that data series. For other narratives, count the family values explicitly; different alignments, recipes or colors within one family do not satisfy the family rule. The rendered reading structure and phone readability must still pass review. Preserve the provided directionId on every page of its assigned candidate. Never choose image-led without selected artwork, or diagram-led without an existing semantic component, structured visual or explicit sequence. Existing visualContent checklist/process/comparison/example copy is preserved as native editable groups; use bodyMode text to retain that existing structure. Return {candidates:[{pages:[PLAN,...]},{pages:[PLAN,...]}]} with two candidates for legacy requests or three when art direction requests three. PLAN schema: ${JSON.stringify(z.toJSONSchema(schema))}`;
+  return `Plan communication BEFORE geometry. Families: oversized-typography (one bold message), asymmetric-editorial (offset columns and deliberate whitespace), image-led (dominant supplied image), diagram-led (native semantic relationship), comparison (two explicit groups), modular-grid (related modules). All adapt to the requested canvas dimensions, including Story safe areas, A4 Poster, portrait Carousel/Post and landscape Presentation. ${responsiveLayoutGuide()} ${typographyGuide()} ${recipeGuide()} Use responsive.visual.textFlow ONLY when planningCapabilities.textFlowModes contains that value; otherwise omit it entirely. This control requires a designed semantic component, not plain text or a preset diagram. Use only actual available assets/components. No fake facts or new diagram labels. bodyMode text preserves the supporting text; sequence/comparison/grid can redistribute existing copy ONLY when it contains a literal separator (supply the exact separator). Sequence uses a native connected timeline. Do not split a sentence into unrelated fragments to force a diagram. All candidates MUST use the SAME frozen copy, selected assets and page count. Plan the sequence together from its narrative and research. Families may repeat within and across alternatives; different visual ideas can share a family. Do not select families, recipes or alternating patterns to satisfy a count. ${DESIGN_CHOICE_STANDARD} The rendered reading structure and phone readability must still pass review. Preserve the provided directionId on every page of its assigned candidate. Never choose image-led without selected artwork, or diagram-led without an existing semantic component, structured visual or explicit sequence. Existing visualContent checklist/process/comparison/example copy is preserved as native editable groups; use bodyMode text to retain that existing structure. Return {candidates:[{pages:[PLAN,...]},{pages:[PLAN,...]}]} with two candidates for legacy requests or three when art direction requests three. PLAN schema: ${JSON.stringify(z.toJSONSchema(schema))}`;
 }
 
 /** Page-specific constraints keep a plain closing CTA from acquiring an invented diagram. */
@@ -328,7 +311,7 @@ export function pageCompositionCapabilities(page:CopyPage){
   const segmentExisting=sequence&&!page.visualContent&&page.semanticComponent&&['timeline','processLoop','checklist'].includes(page.semanticComponent.kind)&&componentCopySources(page).every(source=>{const value=copySource(page,source);return!value.trim()||isCopyReference(value)||page.body.includes(value);});
   const families=COMPOSITION_FAMILIES.filter(f=>f==='image-led'?Boolean(page.assetId):f==='diagram-led'?Boolean(page.semanticComponent||page.visualContent||sequence):f==='comparison'?page.semanticComponent?.kind==='comparison'||page.visualContent?.kind==='comparison':true);
   const recipes=page.semanticDesign?[]:DESIGN_RECIPES.filter(recipe=>!recipeIssues(page,CompositionPlanSchema.parse({family:recipe.family,recipe:{version:1,id:recipe.id},responsive:{version:1},bodyMode:sequence?'sequence':'text',intent:{goal:'Represent the approved page.',relationship:sequence?'sequence':'statement',reason:'Use only the existing supplied content.'}})).length).map(r=>r.id);
-  return {...(page.semanticDesign?{designedComponent:page.semanticDesign.candidateId,allowedArrangements:['stack','auto'],note:'This candidate supplies its own measured native geometry. Keep it full width; do not request a visual recipe or narrow columns.'}:{}),families,recipes,plainVisualOnly:!visual&&!sequence,sequenceFromSuppliedSeparator:sequence,textFlowModes:page.semanticDesign?['regions','grouped'] as const:[],
+  return {typographyWords:{title:typographyWordMap(page.title),body:typographyWordMap(page.body),cta:typographyWordMap(page.cta??'')},...(page.semanticDesign?{designedComponent:page.semanticDesign.candidateId,allowedArrangements:['stack','auto'],note:'This candidate supplies its own measured native geometry. Keep it full width; do not request a visual recipe or narrow columns.'}:{}),families,recipes,plainVisualOnly:!visual&&!sequence,sequenceFromSuppliedSeparator:sequence,textFlowModes:page.semanticDesign?['regions','grouped'] as const:[],
     bodyModes:page.visualContent?['text'] as const:page.semanticComponent?segmentExisting?['text','sequence'] as const:['text'] as const:sequence?['text','sequence','comparison','grid'] as const:['text'] as const,
     visualDirections:page.visualContent||sequence||!page.assetId&&['checklist','processSteps','hubSpoke'].includes(page.semanticComponent?.kind??'')?['auto','horizontal','vertical'] as const:['auto'] as const};
 }

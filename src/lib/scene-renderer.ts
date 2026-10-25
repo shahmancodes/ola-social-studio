@@ -14,6 +14,8 @@ import { storyTextIsSafe } from './story-safe-area';
 import { resolveResponsiveScene, finalizeResponsiveScene, reflowReadableProcess } from './responsive-layout';
 import sharp from 'sharp';
 import { recipeCredit } from './design-recipes';
+import {fontFaceMetadata} from './font-face-metadata';
+import {fontFaceDescriptorCss} from './font-catalog';
 
 export async function sceneFontCss(scene: VisualScene) {
   const fonts=scene.fonts??[];
@@ -26,7 +28,7 @@ export async function sceneFontCss(scene: VisualScene) {
     const bytes=await fs.readFile(file);if(bytes.length>15*1024*1024)throw new Error('Font file is too large.');
     names.push(`${family}: ${f?.name??'Manrope (bundled fallback)'}`);
     const mime=f?.mediaType??'font/woff2';
-    return `@font-face{font-family:${family};src:url(data:${mime};base64,${bytes.toString('base64')});font-style:normal;font-weight:100 900;font-display:block}`;
+    return `@font-face{font-family:${family};src:url(data:${mime};base64,${bytes.toString('base64')});${fontFaceDescriptorCss(fontFaceMetadata(bytes))}font-display:block}`;
   }));scene.fontReport=names;return css.join('')+(scene.additionalFontCss??'');
 }
 

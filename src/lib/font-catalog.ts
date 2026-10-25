@@ -22,7 +22,14 @@ export const OTHER_FONTS = [
 export const EDITOR_FONT_IDS = ["brand-heading", "brand-body", ...OTHER_FONTS.map(f => f.id)] as const;
 export type EditorFont = typeof EDITOR_FONT_IDS[number];
 export type FontSelection = { font?: EditorFont; fontId?: string };
-export type CompanyFont = { id: string; name: string };
+export type FontFaceMetadata = {weight:string;style:'normal'|'italic'};
+export type CompanyFont = { id: string; name: string; face?:FontFaceMetadata };
+/** Shared descriptors keep the editor, measured renderer and standalone exports consistent. */
+export function fontFaceDescriptorCss(face?:FontFaceMetadata){
+ const weight=face?.weight??'400';
+ if(!/^\d+(?:\.\d+)?(?: \d+(?:\.\d+)?)?$/.test(weight)||weight.split(' ').some(n=>Number(n)<1||Number(n)>1000))throw Error('Invalid font weight descriptor.');
+ return`font-weight:${weight};font-style:${face?.style==='italic'?'italic':'normal'};`;
+}
 export function customFontFamily(id: string) { return `OlaCustom${Array.from(id).map(c => c.codePointAt(0)!.toString(16)).join("")}`; }
 export function fontFamily(selection: FontSelection) {
   if (selection.fontId) return customFontFamily(selection.fontId);

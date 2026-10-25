@@ -99,3 +99,24 @@ describe('source-preserving design craft',()=>{
     expect(()=>applyArtifactPatches(artifact,{reason:'Invalid break',patches:[{target:'page-1',typography:{title:{breakAfter:[100]}}}]},'')).toThrow(/word boundaries/);
   });
 });
+
+it.each(['carousel','story','poster'] as const)('lets an explicit body width repair replace automatic asymmetric inset in %s',async format=>{
+ const p=composePage({title:'Start with the source',body:'Find the original material, then read enough surrounding context to understand what the claim actually says.'},{family:'asymmetric-editorial',intent:{goal:'Read the source before judging the claim',relationship:'statement',reason:'Give the headline and supporting prose clear hierarchy.'},typography:{title:{width:.88,align:'left'}},responsive:{version:1,balance:{version:1},readability:{version:1},arrangement:'stack',anchor:'end'}});
+ const artifact=SimpleArtifactSchema.parse({type:'poster',headline:p.title,subline:p.body,composition:p.composition});
+ const fixed=applyArtifactPatches(artifact,{reason:'Align supporting prose with the headline',patches:[{target:'page-1',typography:{body:{width:1,align:'left'}}}]},'');
+ const before=await buildVisualScene(format,p,brand),after=await buildVisualScene(format,artifactPages(fixed)[0],brand);
+ await scenePng(before);await scenePng(after);
+ const position=(scene:typeof after,id:string)=>scene.elements.find(e=>e.id===id)!;
+ expect(position(before,'body').x).toBeGreaterThan(position(before,'title').x);
+ expect(position(after,'body').x).toBeCloseTo(position(after,'title').x);
+ expect(position(after,'body').kind==='text'&&(position(after,'body') as {text:string}).text).toBe(p.body);
+ expect(sceneIssues(after)).toEqual([]);
+},20000);
+
+it.each(['carousel','story','poster','post','presentation'] as const)('does not add a frame to a new %s plan for any text family',async format=>{
+ for(const family of ['oversized-typography','asymmetric-editorial','modular-grid'] as const){
+  const page=composePage({title:'One useful idea',body:'Keep the relationship clear.'},{family,intent:{goal:'Communicate the brief',relationship:'statement',reason:'Use the chosen hierarchy without implied decoration.'},responsive:{version:1,balance:{version:1},readability:{version:1},craft:{version:1}}});
+  const scene=await buildVisualScene(format,page,brand);
+  expect(scene.elements.filter(e=>e.id?.startsWith('craft-rule-')||e.id==='craft-accent-rule'||e.id==='body-rule')).toEqual([]);
+ }
+});

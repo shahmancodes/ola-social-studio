@@ -30,10 +30,18 @@ function primarySignature(observation: LayoutObservation) {
     return JSON.stringify({geometry:saved.geometry.filter((g:{id:string})=>g.id!=='cta'),order:saved.order.filter((id:string)=>id!=='cta'),visual:saved.visual?{mode:visualStructure(saved.visual.mode),columns:saved.visual.columns}:null});
   }catch{return observation.signature;}
 }
+/** Unexpected renderer surfaces are objective defects; repetition alone is not. */
 export function layoutRepetitionFindings(artifact:SimpleArtifact) {
+  return (artifact.renderEvidence??[]).flatMap(e=>{
+    const observation=(e.layout as {observation?:LayoutObservation}|undefined)?.observation;
+    return observation?.unrequestedPanels.length?[{page:e.page,targets:['content'],problem:'The renderer added filled text containers that the composition did not request.',successCriterion:'Render text without implicit surfaces, preserving all source copy.'}]:[];
+  });
+}
+
+/** Evidence for visual judgment, never a quota or an automatic quality failure. */
+export function layoutRepetitionObservations(artifact:SimpleArtifact) {
   const observations=(artifact.renderEvidence??[]).map(e=>({page:e.page,observation:(e.layout as {observation?:LayoutObservation}|undefined)?.observation}));
   const findings:Array<{page:number;targets:string[];problem:string;successCriterion:string}>=[];
-  for(const {page,observation}of observations)if(observation?.unrequestedPanels.length)findings.push({page,targets:['content'],problem:'The renderer added filled text containers that the composition did not request.',successCriterion:'Render text without implicit surfaces, preserving all source copy.'});
   if(observations.length<4)return findings;
   const groups=new Map<string,number[]>();
   for(const {page,observation}of observations)if(observation){const key=primarySignature(observation),pages=groups.get(key)??[];pages.push(page);groups.set(key,pages);}
@@ -46,7 +54,7 @@ export function layoutRepetitionFindings(artifact:SimpleArtifact) {
     if(isConsistentDataSequence(repeated))continue;
     const count=pages.length-threshold+1;
     const targets=pages.slice(1).reverse().sort((a,b)=>Number(slides[b-1]?.role==='close')-Number(slides[a-1]?.role==='close')).slice(0,count);
-    for(const page of targets)findings.push({page,targets:['content'],problem:`Pages ${pages.join(', ')} repeat the same primary rendered reading structure${new Set(roles.filter(Boolean)).size>1?' across different narrative roles':''}. A closing CTA or different surface does not change that structure.`,successCriterion:'Give this page a distinct primary reading direction, headline hierarchy or visual relationship. Use responsive arrangement or visual direction controls on the existing copy; preserve brand consistency and meaningful repeated data structures.'});
+    for(const page of targets)findings.push({page,targets:['content'],problem:`Pages ${pages.join(', ')} repeat the same primary rendered reading structure${new Set(roles.filter(Boolean)).size>1?' across different narrative roles':''}. A closing CTA or different surface does not change that structure.`,successCriterion:'Inspect whether the repeated structure helps continuity or obscures this page’s communication goal. Repetition alone is not a defect. Require a change only for a visible problem in hierarchy, grouping, comprehension or brief fit; preserve useful consistency.'});
   }
   return findings;
 }
